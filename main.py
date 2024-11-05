@@ -80,13 +80,6 @@ class WhatsAppChatRenderer:
 
     def process_chat(self):
         # Clean output directory if it exists
-        if os.path.exists(self.output_dir):
-            print(f"Cleaning existing directory: {self.output_dir}")
-            shutil.rmtree(self.output_dir)
-
-        # Create fresh output directories
-        os.makedirs(self.output_dir)
-        os.makedirs(self.media_dir)
 
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
@@ -97,6 +90,18 @@ class WhatsAppChatRenderer:
             
             # Find the chat file using the zip file's name
             chat_file = f"{zip_base_name}.txt"
+            
+            # Check if the chat file exists in the zip archive
+            if chat_file not in zip_ref.namelist():
+                raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+
+            if os.path.exists(self.output_dir):
+                print(f"Cleaning existing directory: {self.output_dir}")
+                shutil.rmtree(self.output_dir)
+
+                # Create fresh output directories
+                os.makedirs(self.output_dir)
+                os.makedirs(self.media_dir)
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
 
@@ -341,15 +346,18 @@ def open_html_file_in_browser(html_file: Path):
     webbrowser.open(file_path.as_posix())
 
 def main():
+    print("Welcome to WhatsAppChatConverter")
+    print("--------------------------------")
+    print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
     try:
         selected_zip_file = browse_zip_file()
         if not selected_zip_file:
             print("No file selected.")
             exit(0)
-
+        print(f"\nProcessing selected file: {selected_zip_file}...")
         renderer = WhatsAppChatRenderer(selected_zip_file)
         renderer.process_chat()
-        print(f"\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the '{renderer.output_dir}' directory.")
+        print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
         open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
         if open_in_browser != 'n':
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
