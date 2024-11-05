@@ -29,3 +29,7 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
 
 * German
+
+## Supported Operating Systems
+
+* Windows
