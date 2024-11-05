@@ -11,11 +11,17 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 3. **Download the Tool:** 
    - For Windows, download [WhatsAppChatConverter.exe](https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/binary_releases/WhatsAppChatConverter.exe).
 
+   You will have to copy the file away from your Downloads folder to another folder, e.g. Documents. Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway.
+
    **OR**
 
    - If Python is installed on your computer, run the tool directly (no installation required) with the following command:
      ```bash
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
+     ```
+     or
+     ```bash
+     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
      ```
 
 4. **Run the Tool:**
