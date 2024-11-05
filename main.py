@@ -9,6 +9,8 @@ import webbrowser
 import tkinter as tk
 from tkinter import filedialog
 
+version = "0.1.0"
+
 class WhatsAppChatRenderer:
     def __init__(self, zip_path):
         # Validate zip file existence
@@ -346,7 +348,7 @@ def open_html_file_in_browser(html_file: Path):
     webbrowser.open(file_path.as_posix())
 
 def main():
-    print("Welcome to WhatsAppChatConverter")
+    print(f"Welcome to WhatsAppChatConverter v{version}")
     print("--------------------------------")
     print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
     try:
