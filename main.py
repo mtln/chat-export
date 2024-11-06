@@ -207,7 +207,6 @@ class WhatsAppChatRenderer:
         for line in chat_content.split('\n'):
             match = self.chat_pattern.match(line)
             if match:
-                print(line)
                 total_count += 1
                 if current_line:
                     processed_content.append(''.join(current_line))
@@ -472,7 +471,7 @@ def open_html_file_in_browser(html_file: Path):
 
 def main():
     print(f"Welcome to WhatsAppChatConverter v{version}")
-    print("--------------------------------")
+    print("----------------------------------------")
     print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
     try:
         selected_zip_file = browse_zip_file()
