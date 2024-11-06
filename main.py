@@ -6,8 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import webbrowser
-import tkinter as tk
-from tkinter import filedialog
+
 
 version = "0.1.0"
 
@@ -54,6 +53,7 @@ class WhatsAppChatRenderer:
             # Common WhatsApp format for images/videos
             r'‎?(IMG|VID)-\d{8}(?:-WA\d{4})?\.(?:jpg|jpeg|png|mp4|gif|webp)',
         ]
+        self.has_media = False
 
     def get_senders(self, chat_content):
         senders = set()
@@ -87,8 +87,11 @@ class WhatsAppChatRenderer:
         zip_base_name = Path(self.zip_path).stem
 
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            # Extract all files
-            zip_ref.extractall(self.media_dir)
+            # Extract media files
+            for file in zip_ref.namelist():
+                if file != f"{zip_base_name}.txt":
+                    zip_ref.extract(file, self.media_dir)
+                    self.has_media = True
             
             # Find the chat file using the zip file's name
             chat_file = f"{zip_base_name}.txt"
@@ -155,9 +158,9 @@ class WhatsAppChatRenderer:
         # Write HTML file
         with open(os.path.join(self.output_dir, self.html_filename), 'w', encoding='utf-8') as f:
             f.write(self.generate_html(chat_content, render_attachments=True))
-
-        with open(os.path.join(self.output_dir, self.html_filename_media_linked), 'w', encoding='utf-8') as f:
-            f.write(self.generate_html(chat_content, render_attachments=False))
+        if self.has_media:
+            with open(os.path.join(self.output_dir, self.html_filename_media_linked), 'w', encoding='utf-8') as f:
+                f.write(self.generate_html(chat_content, render_attachments=False))
 
     @staticmethod
     def wrap_urls_with_anchor_tags(text):
@@ -326,7 +329,26 @@ class WhatsAppChatRenderer:
         """
         return html
 
+def check_tkinter_availability():
+    """Check if tkinter is available and working on the system."""
+    try:
+        import tkinter as tk
+        root = tk.Tk()
+        root.destroy()
+        return True
+    except Exception as e:
+        print("Tkinter is not available on your system. Using prompt input instead of file picker dialog.")
+        return False
+
 def browse_zip_file():
+    # Check tkinter availability first
+    if not check_tkinter_availability():
+        # Fallback to command line input
+        file_path = input("Please enter the path to your WhatsApp chat export ZIP file: ").strip()
+        return file_path if file_path else None
+        
+    import tkinter as tk
+    from tkinter import filedialog
     # Initialize Tkinter root window and hide it
     root = tk.Tk()
     root.withdraw()  # Hide the main window
@@ -345,7 +367,9 @@ def open_html_file_in_browser(html_file: Path):
     # Get the absolute path of the file
     file_path = Path(os.path.abspath(html_file))
     # Open the file in the default web browser
-    webbrowser.open(file_path.as_posix())
+    # file:///
+    print(file_path.as_posix())
+    webbrowser.open(f"file://{file_path.as_posix()}")
 
 def main():
     print(f"Welcome to WhatsAppChatConverter v{version}")
@@ -362,7 +386,8 @@ def main():
         print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
         open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
         if open_in_browser != 'n':
-            open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
+            if renderer.has_media:
+                open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
     except FileNotFoundError as e:
         print(f"\nError: {e}")
