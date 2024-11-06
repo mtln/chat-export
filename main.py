@@ -1,6 +1,6 @@
 import zipfile
 import os
-from datetime import datetime
+from datetime import datetime, date
 import re
 from pathlib import Path
 import shutil
@@ -70,6 +70,14 @@ class WhatsAppChatRenderer:
             r'‎?(IMG|VID)-\d{8}(?:-WA\d{4})?\.(?:jpg|jpeg|png|mp4|gif|webp)',
         ]
         self.has_media = False
+        self.from_date = None
+        self.until_date = None
+        self.date_formats = [
+            "%d.%m.%Y",  # German format: DD.MM.YYYY
+            "%m/%d/%Y",  # US format: MM/DD/YYYY
+            "%d.%m.%y",  # German format: DD.MM.YY
+            "%m/%d/%y"   # US format: MM/DD/YY
+        ]
 
     def get_senders(self, chat_content):
         senders = set()
@@ -96,7 +104,67 @@ class WhatsAppChatRenderer:
             color_index = i % len(self.sender_colors['others'])
             self.sender_color_map[sender] = self.sender_colors['others'][color_index]
 
+    def parse_date_input(self, date_str):
+        """Parse date string in either US or German format."""
+        if not date_str:
+            return None
+            
+        for fmt in self.date_formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError(f"Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+
+    def parse_message_date(self, date_str):
+        """Parse the date from a message timestamp."""
+        # Remove time part
+        date_str = date_str.split(',')[0]
+        # Try both German and US formats from the chat
+        for fmt in self.date_formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError(f"Could not parse message date: {date_str}")
+
+    def is_message_in_date_range(self, timestamp):
+        """Check if message timestamp falls within the specified date range."""
+        msg_date = self.parse_message_date(timestamp)
+        if self.from_date and msg_date < self.from_date:
+            return False
+        if self.until_date and msg_date > self.until_date:
+            return False
+        return True
+
     def process_chat(self):
+        # Ask for optional date range
+        print("\nOptional: Enter date range to filter messages")
+        print("Supported formats: MM/DD/YYYY, DD.MM.YYYY, MM/DD/YY, DD.MM.YY")
+        print("Leave empty to skip")
+        
+        while True:
+            try:
+                from_date_str = input("From date (optional): ").strip()
+                self.from_date = self.parse_date_input(from_date_str)
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+                if input("Try again? [Y/n]: ").lower() == 'n':
+                    break
+
+        while True:
+            try:
+                until_date_str = input("Until date (optional): ").strip()
+                self.until_date = self.parse_date_input(until_date_str)
+                if self.from_date and self.until_date and self.from_date > self.until_date:
+                    raise ValueError("'From' date must be before 'until' date")
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+                if input("Try again? [Y/n]: ").lower() == 'n':
+                    break
+
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
 
@@ -133,28 +201,36 @@ class WhatsAppChatRenderer:
         # Preprocess the chat content to handle multi-line messages
         processed_content = []
         current_line = []
+        filtered_count = 0
+        total_count = 0
         
         for line in chat_content.split('\n'):
-            # Check if line starts with a date pattern
-            if self.chat_pattern.match(line):
+            match = self.chat_pattern.match(line)
+            if match:
+                print(line)
+                total_count += 1
                 if current_line:
                     processed_content.append(''.join(current_line))
+                # Only add messages within date range
+                if not self.is_message_in_date_range(match.group(1)):
+                    current_line = []
+                    continue
+                filtered_count += 1
                 current_line = [line]
             else:
-                # If it's a continuation, add it with a <br>
                 if current_line:
                     current_line.append(self.newline_marker + line)
-                else:
-                    # If somehow we start with a continuation line, just add it
-                    current_line = [line]
-        
+
         # Don't forget to add the last message
         if current_line:
             processed_content.append(''.join(current_line))
 
         # Join all processed lines with newlines
         chat_content = '\n'.join(processed_content)
-        print(f"Chat contains {len(processed_content)} messages.")
+        if self.from_date or self.until_date:
+            print(f"\n{filtered_count} of {total_count} messages match date range filter.")
+        print(f"Exporting {len(processed_content)} messages.")
+        # print(processed_content)
         # Get list of senders and let user choose their name
         senders = self.get_senders(chat_content)
         print("\nFound the following participants in the chat:")
@@ -292,8 +368,11 @@ class WhatsAppChatRenderer:
         <body>
         <div class="chat-container">
         <h1>PLACEHOLDER_CHAT_NAME</h1>
-        """.replace("PLACEHOLDER_CHAT_NAME", self.chat_name)
-
+        """.replace('PLACEHOLDER_CHAT_NAME', self.chat_name)
+        if self.from_date or self.until_date:
+            date_range = f"Filtered: {self.from_date.strftime('%d.%m.%Y') if self.from_date else 'start'} to {self.until_date.strftime('%d.%m.%Y') if self.until_date else 'end'}"
+            html += f'<p style="color: #667781;">{date_range}</p>'
+        
         for line in chat_content.split('\n'):
             match = self.chat_pattern.match(line)
             if match:
