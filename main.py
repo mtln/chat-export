@@ -23,8 +23,11 @@ class WhatsAppChatRenderer:
         self.output_dir = Path(zip_path).stem
         self.chat_name = Path(zip_path).stem
         self.media_dir = os.path.join(self.output_dir, "media")
-        # self.chat_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
-        self.chat_pattern = re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
+        # Replace the single chat_pattern with a map of patterns
+        self.chat_patterns = {
+            'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?)\] (.*?): (.*)'),
+            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
+        }
         self.own_name = None
         self.sender_colors = {
             'own': '#d9fdd3',    # WhatsApp green for own messages
@@ -54,6 +57,10 @@ class WhatsAppChatRenderer:
         self.html_filename_media_linked = 'chat_media_linked.html'
         # Various attachment markers in different languages
         self.attachment_patterns = [
+            # iOS patterns
+            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado):\s*([^>]+)>',
+            
+            # Android patterns
             # English
             r'(.+?) \(file attached\)',
             # German
@@ -66,8 +73,6 @@ class WhatsAppChatRenderer:
             r'(.+?) \(file allegato\)',
             # Portuguese
             r'(.+?) \(arquivo anexado\)',
-            # Common WhatsApp format for images/videos
-            r'‎?(IMG|VID)-\d{8}(?:-WA\d{4})?\.(?:jpg|jpeg|png|mp4|gif|webp)',
         ]
         self.has_media = False
         self.from_date = None
@@ -78,11 +83,13 @@ class WhatsAppChatRenderer:
             "%d.%m.%y",  # German format: DD.MM.YY
             "%m/%d/%y"   # US format: MM/DD/YY
         ]
+        self.is_ios = False
 
     def get_senders(self, chat_content):
         senders = set()
+        pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
-            match = self.chat_pattern.match(line)
+            match = pattern.match(line)
             if match:
                 sender = match.group(2)
                 senders.add(sender)
@@ -179,12 +186,14 @@ class WhatsAppChatRenderer:
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
             # Extract media files
             for file in zip_ref.namelist():
-                if file != f"{zip_base_name}.txt":
+                if file.lower() == '_chat.txt':
+                    self.is_ios = True
+                if file != f"{zip_base_name}.txt" and file != '_chat.txt':
                     zip_ref.extract(file, self.media_dir)
                     self.has_media = True
             
-            # Find the chat file using the zip file's name
-            chat_file = f"{zip_base_name}.txt"
+            # Find the chat file using the zip file's name or _chat.txt for iOS
+            chat_file = '_chat.txt' if self.is_ios else f"{zip_base_name}.txt"
             
             # Check if the chat file exists in the zip archive
             if chat_file not in zip_ref.namelist():
@@ -194,9 +203,9 @@ class WhatsAppChatRenderer:
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
         if self.has_media:
-            print("Export contains media/attachments.")
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments.")
         else:
-            print("Export does not contain media/attachments.")
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments.")
             shutil.rmtree(self.media_dir)
         # Preprocess the chat content to handle multi-line messages
         processed_content = []
@@ -205,7 +214,10 @@ class WhatsAppChatRenderer:
         total_count = 0
         
         for line in chat_content.split('\n'):
-            match = self.chat_pattern.match(line)
+            # remove the Left-to-right_marks
+            line = line.replace('‎','')
+            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            match = pattern.match(line)
             if match:
                 total_count += 1
                 if current_line:
@@ -228,6 +240,8 @@ class WhatsAppChatRenderer:
         chat_content = '\n'.join(processed_content)
         if self.from_date or self.until_date:
             print(f"\n{filtered_count} of {total_count} messages match date range filter.")
+            if filtered_count == 0:
+                raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(processed_content)} messages.")
         # print(processed_content)
         # Get list of senders and let user choose their name
@@ -273,8 +287,6 @@ class WhatsAppChatRenderer:
             if match:
                 # Return the first group if it exists, otherwise the full match
                 result = match.group(1) if match.groups() else match.group(0)
-                # remove the Left-to-right_mark
-                result = result.replace('‎','')
                 return result
         return None
 
@@ -373,7 +385,8 @@ class WhatsAppChatRenderer:
             html += f'<p style="color: #667781;">{date_range}</p>'
         
         for line in chat_content.split('\n'):
-            match = self.chat_pattern.match(line)
+            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            match = pattern.match(line)
             if match:
                 timestamp, sender, content = match.groups()
                 
