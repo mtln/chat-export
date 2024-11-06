@@ -30,7 +30,23 @@ class WhatsAppChatRenderer:
             'own': '#d9fdd3',    # WhatsApp green for own messages
             'default': '#ffffff', # White for the second sender
             # Additional colors for other senders
-            'others': ['#f0e6ff', '#fff3e6', '#e6fff0', '#ffe6e6', '#e6f3ff']
+            'others': [
+                '#f0e6ff',  # Light purple
+                '#fff3e6',  # Light orange
+                '#e6fff0',  # Light mint
+                '#ffe6e6',  # Light pink
+                '#e6f3ff',  # Light blue
+                '#fff0f0',  # Lighter pink
+                '#e6ffe6',  # Lighter mint
+                '#f2e6ff',  # Lighter purple
+                '#fff5e6',  # Peach
+                '#e6ffff',  # Light cyan
+                '#ffe6f0',  # Rose
+                '#f0ffe6',  # Light lime
+                '#e6e6ff',  # Lavender
+                '#ffe6cc',  # Light apricot
+                '#e6fff9'   # Light turquoise
+            ]
         }
         self.sender_color_map = {}
         self.newline_marker = ' $NEWLINE$ '
@@ -39,7 +55,7 @@ class WhatsAppChatRenderer:
         # Various attachment markers in different languages
         self.attachment_patterns = [
             # English
-            r'<attached: (.+?)>',
+            r'(.+?) \(file attached\)',
             # German
             r'(.+?) \(Datei angehängt\)',
             # Spanish
@@ -81,10 +97,16 @@ class WhatsAppChatRenderer:
             self.sender_color_map[sender] = self.sender_colors['others'][color_index]
 
     def process_chat(self):
-        # Clean output directory if it exists
-
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
+
+        if os.path.exists(self.output_dir):
+                print(f"Cleaning existing directory: {self.output_dir}")
+                shutil.rmtree(self.output_dir)
+
+                # Create fresh output directories
+                os.makedirs(self.output_dir)
+                os.makedirs(self.media_dir)
 
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
             # Extract media files
@@ -100,16 +122,14 @@ class WhatsAppChatRenderer:
             if chat_file not in zip_ref.namelist():
                 raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
 
-            if os.path.exists(self.output_dir):
-                print(f"Cleaning existing directory: {self.output_dir}")
-                shutil.rmtree(self.output_dir)
-
-                # Create fresh output directories
-                os.makedirs(self.output_dir)
-                os.makedirs(self.media_dir)
+            
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
-
+        if self.has_media:
+            print("Export contains media/attachments.")
+        else:
+            print("Export does not contain media/attachments.")
+            shutil.rmtree(self.media_dir)
         # Preprocess the chat content to handle multi-line messages
         processed_content = []
         current_line = []
@@ -134,7 +154,7 @@ class WhatsAppChatRenderer:
 
         # Join all processed lines with newlines
         chat_content = '\n'.join(processed_content)
-
+        print(f"Chat contains {len(processed_content)} messages.")
         # Get list of senders and let user choose their name
         senders = self.get_senders(chat_content)
         print("\nFound the following participants in the chat:")

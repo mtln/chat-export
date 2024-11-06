@@ -5,8 +5,9 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 ## Instructions
 
 1. **Export the Chat:** Begin by exporting a chat from the WhatsApp app, preferably with media included. For detailed instructions, refer to [WhatsApp FAQ](https://faq.whatsapp.com/search?helpref=search&query=%20export%20chat).
+You can for example save it on Google Drive or Dropbox or send it to yourself with WhatsApp.
 
-2. **Transfer the File:** Move the exported ZIP file to your computer.
+2. **Transfer the File:** Move the exported ZIP file to your computer. If you have sent it to yourself with WhatsApp, you can download it with WhatsApp Web or with the WhatsApp App on your computer. Delete the WhatsApp message afterwards to save space.
 
 3. **Download the Tool:** 
    - For Windows, download [WhatsAppChatConverter.exe](https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/binary_releases/WhatsAppChatConverter.exe).
@@ -34,8 +35,17 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
 
+* English
 * German
+* French
+
+Prepared to support, but not yet tested:
+
+* Spanish
+* Italian
+* Portugese
 
 ## Supported Operating Systems
 
 * Windows
+* Mac
