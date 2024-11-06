@@ -39,7 +39,6 @@ WhatsApp chat exports vary depending on your phone’s system language. Currentl
 * German
 * French
 * Italian
-* Portugese
 
 Prepared to support, but not yet tested:
 
