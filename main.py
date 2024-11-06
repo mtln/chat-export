@@ -172,9 +172,9 @@ class WhatsAppChatRenderer:
                 print(f"Cleaning existing directory: {self.output_dir}")
                 shutil.rmtree(self.output_dir)
 
-                # Create fresh output directories
-                os.makedirs(self.output_dir)
-                os.makedirs(self.media_dir)
+        # Create fresh output directories
+        os.makedirs(self.output_dir)
+        os.makedirs(self.media_dir)
 
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
             # Extract media files
