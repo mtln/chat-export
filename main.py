@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.1.1"
+version = "0.2.0"
 
 class WhatsAppChatRenderer:
     def __init__(self, zip_path):
@@ -29,6 +29,7 @@ class WhatsAppChatRenderer:
             'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
         }
         self.own_name = None
+        self.attachments_to_extract = set()
         self.sender_colors = {
             'own': '#d9fdd3',    # WhatsApp green for own messages
             'default': '#ffffff', # White for the second sender
@@ -183,13 +184,16 @@ class WhatsAppChatRenderer:
         os.makedirs(self.output_dir)
         os.makedirs(self.media_dir)
 
+        media_in_zip = set()
+
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
             # Extract media files
             for file in zip_ref.namelist():
                 if file.lower() == '_chat.txt':
                     self.is_ios = True
                 if file != f"{zip_base_name}.txt" and file != '_chat.txt':
-                    zip_ref.extract(file, self.media_dir)
+                    # zip_ref.extract(file, self.media_dir)
+                    media_in_zip.add(file)
                     self.has_media = True
             
             # Find the chat file using the zip file's name or _chat.txt for iOS
@@ -264,12 +268,22 @@ class WhatsAppChatRenderer:
         # Setup color mapping for senders
         self.setup_sender_colors(senders)
       
+        print("Writing HTML...")
         # Write HTML file
         with open(os.path.join(self.output_dir, self.html_filename), 'w', encoding='utf-8') as f:
             f.write(self.generate_html(chat_content, render_attachments=True))
         if self.has_media:
             with open(os.path.join(self.output_dir, self.html_filename_media_linked), 'w', encoding='utf-8') as f:
                 f.write(self.generate_html(chat_content, render_attachments=False))
+            print("Extracting attachments/media...")
+            # extract attachments of rendered messages
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                # Extract media files
+                for file in zip_ref.namelist():
+                    if file in self.attachments_to_extract:
+                        zip_ref.extract(file, self.media_dir)
+        print("Done.")
+                       
 
     @staticmethod
     def wrap_urls_with_anchor_tags(text):
@@ -403,6 +417,7 @@ class WhatsAppChatRenderer:
                 # Check for attachments using the new patterns
                 attachment_name = self.extract_attachment_name(content)
                 if attachment_name:
+                    self.attachments_to_extract.add(attachment_name)
                     media_path = f"./media/{attachment_name}"
                     if render_attachments:
                         if attachment_name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
