@@ -504,8 +504,7 @@ def main():
     try:
         selected_zip_file = browse_zip_file()
         if not selected_zip_file:
-            print("No file selected.")
-            exit(0)
+            raise FileNotFoundError("No file selected.")
         print(f"\nProcessing selected file: {selected_zip_file}...")
         renderer = WhatsAppChatRenderer(selected_zip_file)
         renderer.process_chat()
