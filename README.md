@@ -67,3 +67,4 @@ Prepared to support, but not yet tested:
 
 * Windows
 * Mac
+* Linux
