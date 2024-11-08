@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.2.0"
+version = "0.2.1"
 
 class WhatsAppChatRenderer:
     def __init__(self, zip_path):
