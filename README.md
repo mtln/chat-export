@@ -4,12 +4,14 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 
 ## Why is this useful?
 The HTML export is:
+
 * **Printable:** You can print the chat or save as a PDF.
 * **Searchable:** You can search for specific messages in the browser.
 * **Shareable:** You can share the chat with others who don’t have WhatsApp.
 * **Durable:** You can keep the chat as a record for years to come. Apps come and go. Plain HTML is here to stay.
 
 Maybe you want to:
+
 * keep a record of a conversation with a former loved one, friend, or business partner. You want to delete the chat from your phone, but you don’t want to lose the memories.
 * save a chat with important information, such as addresses, phone numbers, or other data.
 * keep a chat with a person who has passed away.
