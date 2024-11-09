@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.2.1"
+version = "0.2.2"
 
 class WhatsAppChatRenderer:
     def __init__(self, zip_path):
@@ -387,6 +387,11 @@ class WhatsAppChatRenderer:
                 }
                 a:hover {
                     text-decoration: underline;
+                }
+                @media print {
+                    body {
+                        background-color: #ffffff;
+                    }
                 }
             </style>
         </head>
