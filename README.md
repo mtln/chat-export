@@ -48,7 +48,15 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 5. **Identify Yourself:** A list of chat participants will appear. Select your name so that your messages are displayed in green chat bubbles, just like on WhatsApp. If the terminal window doesn’t accept your keyboard input, click right after the colon in `Enter the number corresponding to your name:`.
 
-6. **Open HTML Files:** Once the conversion completes, you can choose to open the HTML files immediately in your browser. From there, you can save the chat as a PDF or print it if needed.
+6. **Open HTML Files:** Once the conversion completes, you can choose to open the HTML files immediately in your browser. From there, you can save the chat as a PDF or print it if needed.  
+
+7. **Print or export HTML to PDF:** 
+When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions.  
+
+- **In Google Chrome**: Go to `Print` → `More settings` → Check `Background graphics`.
+- **In Mozilla Firefox**: Go to `File` → `Print` → `Page Setup` → Check `Print Background (colors & images)`.
+- **In Microsoft Edge**: Go to `Print` → `More settings` → Check `Background graphics`.
+
 
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
