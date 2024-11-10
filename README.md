@@ -37,7 +37,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    **OR**
 
-   - If Python is installed on your computer, run the tool directly (no installation required) with the following command:
+   - If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
      ```bash
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
      ```
@@ -47,7 +47,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      ```
 
 4. **Run the Tool:**
-   - After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
+   After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
 
 5. **Identify Yourself:** A list of chat participants will appear. Select your name so that your messages are displayed in green chat bubbles, just like on WhatsApp. If the terminal window doesn’t accept your keyboard input, click right after the colon in `Enter the number corresponding to your name:`.
 
