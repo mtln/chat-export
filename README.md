@@ -68,11 +68,10 @@ WhatsApp chat exports vary depending on your phone’s system language. Currentl
 * German
 * French
 * Italian
-
-Prepared to support, but not yet tested:
-
 * Spanish
 * Portugese
+
+If your language is not supported, please let me know.
 
 ## Supported Operating Systems
 

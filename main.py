@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.2.2"
+version = "0.3.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -30,6 +30,7 @@ class WhatsAppChatRenderer:
             'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?)\] (.*?): (.*)'),
             'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
         }
+        self.message_date_format = "%d.%m.%y"
         self.own_name = None
         self.attachments_to_extract = set()
         self.sender_colors = {
@@ -114,6 +115,47 @@ class WhatsAppChatRenderer:
             color_index = i % len(self.sender_colors['others'])
             self.sender_color_map[sender] = self.sender_colors['others'][color_index]
 
+    def get_date_format(self, chat_content):
+        chat_content = chat_content.replace('‎','')
+        first_line = None
+        pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+        for line in chat_content.split('\n'):
+            if pattern.match(line):
+                first_line = line
+                break
+
+        first_line_date = first_line.split(',')[0].replace('[', '')
+        # find first non-digit in the date string
+        for char in first_line_date:
+            if not char.isdigit():
+                deliminator = char
+                break
+        
+        # check if year is 2 or 4 digits
+        year_pattern = '%y' if len(first_line_date.split(deliminator)[2]) == 2 else '%Y'
+        day_before_month = True
+        for line in chat_content.split('\n'):
+            if not pattern.match(line):
+                continue
+            date_str = line.replace('[', '').split(',')[0]
+            first, second, _ = date_str.split(deliminator)
+            # convert to int
+            first = int(first)
+            second = int(second)
+            if first > 12:
+                day_before_month = True
+                break
+            if second > 12:
+                day_before_month = False
+                break
+
+        if day_before_month:
+            return f'%d{deliminator}%m{deliminator}{year_pattern}'
+        else:
+            return f'%m{deliminator}%d{deliminator}{year_pattern}'
+
+        
+
     def parse_date_input(self, date_str):
         """Parse date string in either US or German format."""
         if not date_str:
@@ -130,13 +172,8 @@ class WhatsAppChatRenderer:
         """Parse the date from a message timestamp."""
         # Remove time part
         date_str = date_str.split(',')[0]
-        # Try both German and US formats from the chat
-        for fmt in self.date_formats:
-            try:
-                return datetime.strptime(date_str, fmt).date()
-            except ValueError:
-                continue
-        raise ValueError(f"Could not parse message date: {date_str}")
+        return datetime.strptime(date_str, self.message_date_format).date()
+
 
     def is_message_in_date_range(self, timestamp):
         """Check if message timestamp falls within the specified date range."""
@@ -218,6 +255,8 @@ class WhatsAppChatRenderer:
         current_line = []
         filtered_count = 0
         total_count = 0
+
+        self.message_date_format = self.get_date_format(chat_content)
         
         for line in chat_content.split('\n'):
             # remove the Left-to-right_marks
@@ -402,11 +441,11 @@ class WhatsAppChatRenderer:
         <h1>PLACEHOLDER_CHAT_NAME</h1>
         """.replace('PLACEHOLDER_CHAT_NAME', self.chat_name)
         if self.from_date or self.until_date:
-            date_range = f"Filtered: {self.from_date.strftime('%d.%m.%Y') if self.from_date else 'start'} to {self.until_date.strftime('%d.%m.%Y') if self.until_date else 'end'}"
+            date_range = f"Filtered: {self.from_date.strftime(self.message_date_format) if self.from_date else 'start'} to {self.until_date.strftime(self.message_date_format) if self.until_date else 'end'}"
             html += f'<p style="color: #667781;">{date_range}</p>'
         
+        pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
-            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
             match = pattern.match(line)
             if match:
                 timestamp, sender, content = match.groups()
