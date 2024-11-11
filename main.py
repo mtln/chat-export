@@ -560,17 +560,15 @@ def main():
             if renderer.has_media:
                 open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
-        if input("\nDo you like the tool and want to buy me a coffee? [Y/n]: ").strip().lower() != 'n':
-            webbrowser.open(donate_link)
+    
     except FileNotFoundError as e:
         print(f"\nError: {e}")
-        sys.exit(1)
     except ValueError as e:
         print(f"\nError: {e}")
-        sys.exit(1)
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
+    if input("\nDo you like the tool and want to buy me a coffee? [Y/n]: ").strip().lower() != 'n':
+            webbrowser.open(donate_link)
