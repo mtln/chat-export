@@ -570,5 +570,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-    if input("\nDo you like the tool and want to buy me a coffee? [Y/n]: ").strip().lower() != 'n':
-            webbrowser.open(donate_link)
+    if input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
+        webbrowser.open(donate_link)
