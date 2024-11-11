@@ -21,7 +21,7 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 
 Furthermore, the tool is open-source and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
-And by the way, it’s free! If you find it useful, you can donate.
+And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
 
 ## Instructions
 

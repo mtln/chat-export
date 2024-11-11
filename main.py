@@ -10,6 +10,8 @@ import webbrowser
 
 version = "0.2.2"
 
+donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
+
 class WhatsAppChatRenderer:
     def __init__(self, zip_path):
         # Validate zip file existence
@@ -519,6 +521,8 @@ def main():
             if renderer.has_media:
                 open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
+        if input("\nDo you like the tool and want to buy me a coffee? [Y/n]: ").strip().lower() != 'n':
+            webbrowser.open(donate_link)
     except FileNotFoundError as e:
         print(f"\nError: {e}")
         sys.exit(1)
