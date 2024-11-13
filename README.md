@@ -38,11 +38,11 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    **OR**
 
    - If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
-     ```bash
+     ```
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
      ```
      or
-     ```bash
+     ```
      python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/WhatsAppChatConverter/refs/heads/main/main.py').read().decode())"
      ```
 
