@@ -56,11 +56,10 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 * Once the conversion completes, you can choose to open the HTML files immediately in your browser (just hit enter). From there, you can save the chat as a PDF or print it if needed.  
 
-* When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions.  
-
-   - **In Google Chrome**: Go to `Print` → `More settings` → Check `Background graphics`.
-   - **In Mozilla Firefox**: Go to `File` → `Print` → `Page Setup` → Check `Print Background (colors & images)`.
-   - **In Microsoft Edge**: Go to `Print` → `More settings` → Check `Background graphics`.
+* When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions. 
+   * **In Google Chrome**: Go to `Print` → `More settings` → Check `Background graphics`.
+   * **In Mozilla Firefox**: Go to `File` → `Print` → `Page Setup` → Check `Print Background (colors & images)`.
+   * **In Microsoft Edge**: Go to `Print` → `More settings` → Check `Background graphics`.
 
 
 ## Supported languages
