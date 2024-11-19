@@ -2,7 +2,7 @@
 
 This tool converts a WhatsApp chat export into two HTML formats: one with inline media (such as images, videos, and audio files) and a compact version with media links.
 
-Video Tutorial:  
+Video Tutorial (still refers to the previously used tool name instead of `chat-export`):  
 [![YouTube](https://img.youtube.com/vi/s1dMO8pjkC8/0.jpg)](https://www.youtube.com/watch?v=s1dMO8pjkC8)"
 
 ## Why is this useful?
