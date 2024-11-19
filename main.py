@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.3.0"
+version = "0.4.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -444,6 +444,8 @@ class WhatsAppChatRenderer:
             date_range = f"Filtered: {self.from_date.strftime(self.message_date_format) if self.from_date else 'start'} to {self.until_date.strftime(self.message_date_format) if self.until_date else 'end'}"
             html += f'<p style="color: #667781;">{date_range}</p>'
         
+        html += f'<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
+        
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
             match = pattern.match(line)
@@ -544,7 +546,7 @@ def open_html_file_in_browser(html_file: Path):
     webbrowser.open(f"file://{file_path.as_posix()}")
 
 def main():
-    print(f"Welcome to WhatsAppChatConverter v{version}")
+    print(f"Welcome to chat-export v{version}")
     print("----------------------------------------")
     print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
     try:
