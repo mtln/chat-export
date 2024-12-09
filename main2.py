@@ -25,17 +25,14 @@ def read_file_from_zip(zip_filename, target_filename):
         return ''
 
 def data_url(zip_fn, filename):
-    #data = open(filename, "rb").read()
     data = read_file_from_zip(zip_fn, filename)
     if data is None:
         return f"Error: {filename} not found in {zip_fn}"
-    b64_data = base64.b64encode(data)
-    b64_text = b64_data.decode('utf-8')
-    extension = os.path.splitext(filename)[1]
-    if extension.startswith('.'): extension = extension[1:]
-    if extension == 'jpg': extension = 'jpeg'
-    if extension == 'webp': extension = 'webp' 
-    url = f"data:image/{extension};base64,{b64_text}"
+    b64_encoded = base64.b64encode(data).decode('utf-8')
+    extension = os.path.splitext(filename)[1].replace('.','').lower()
+    if extension == 'jpg':
+        extension = 'jpeg' # tested with jpg and webp
+    url = f"data:image/{extension};base64,{b64_encoded}"
     return url
 
 def exit_with_instructions():
