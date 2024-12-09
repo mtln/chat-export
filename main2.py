@@ -196,7 +196,7 @@ def validate_zip(zip_filename):
 
 def extract_messages(data):
     # Regex to match the format
-    pattern = r"\[(\d+/\d+/\d+, \d+:\d+:\d+\s?[AP]*M)\]([^:]*):([^[]*)"
+    pattern = r"\[(\d+/\d+/\d+, \d+:\d+:\d+[^[]*)\]([^:]*):([^[]*)"
 
     # Find all matches
     matches = re.findall(pattern, data, re.MULTILINE | re.DOTALL)
