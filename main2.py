@@ -13,25 +13,16 @@ zipfile.
 
 def read_file_from_zip(zip_filename, target_filename):
     try:
-        # Open the ZIP file
         with zipfile.ZipFile(zip_filename, 'r') as zip_file:
             # Check if the target file exists in the ZIP
-            # print(zip_file.namelist())
             if target_filename in zip_file.namelist():
-                # Read the content of the target file
                 content = zip_file.read(target_filename)
-                # print('read_file_from_zip', zip_filename, target_filename, len(content), type(content))
-                # Return as text if needed
                 return content if content else b'sorry bub, no content'
             else:
                 raise FileNotFoundError(f"{target_filename} not found in {zip_filename}")
     except Exception as e:
         print(f"Error: {e}")
-        return None
-
-def wrap_dt(dt):
-    return f"<br/><span class='when'>{dt} ET</span>"
-
+        return ''
 
 def data_url(zip_fn, filename):
     #data = open(filename, "rb").read()
@@ -59,70 +50,68 @@ def header_html(zipfile_name):
     <meta charset="utf-8">
     <title>Chat from {zipfile_name}</title>
     <style>
-
-                    body {
-                    font-family: Arial, sans-serif;
-                    max-width: 900px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background-color: #e5ddd5;
-                }
-                .message {
-                    margin: 10px 0;
-                    padding: 10px;
-                    border-radius: 7.5px;
-                    max-width: 65%;
-                    position: relative;
-                    clear: both;
-                }
-                .message.sent {
-                    float: right;
-                    margin-left: 35%;
-                }
-                .message.received {
-                    float: left;
-                    margin-right: 35%;
-                }
-                .media {
-                    max-width: 100%;
-                    border-radius: 5px;
-                    margin: 5px 0;
-                }
-                .timestamp {
-                    color: #667781;
-                    font-size: 0.75em;
-                    float: right;
-                    margin-left: 10px;
-                    margin-top: 5px;
-                }
-                .sender {
-                    color: #1f7aad;
-                    font-size: 0.85em;
-                    font-weight: bold;
-                    display: block;
-                    margin-bottom: 5px;
-                }
-                .content {
-                    word-wrap: break-word;
-                }
-                .clearfix::after {
-                    content: "";
-                    clear: both;
-                    display: table;
-                }
-                a {
-                    color: #039be5;
-                    text-decoration: none;
-                }
-                a:hover {
-                    text-decoration: underline;
-                }
-                @media print {
-                    body {
-                        background-color: #ffffff;
-                    }
-                }
-
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #e5ddd5;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 7.5px;
+            max-width: 65%;
+            position: relative;
+            clear: both;
+        }
+        .message.sent {
+            float: right;
+            margin-left: 35%;
+        }
+        .message.received {
+            float: left;
+            margin-right: 35%;
+        }
+        .media {
+            max-width: 100%;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .timestamp {
+            color: #667781;
+            font-size: 0.75em;
+            float: right;
+            margin-left: 10px;
+            margin-top: 5px;
+        }
+        .sender {
+            color: #1f7aad;
+            font-size: 0.85em;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .content {
+            word-wrap: break-word;
+        }
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+        a {
+            color: #039be5;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        @media print {
+            body {
+                background-color: #ffffff;
+            }
+        }
     </style>
 </head>
 <body>
@@ -130,50 +119,42 @@ def header_html(zipfile_name):
     <h1>Chat from {zipfile_name}</h1>
     """.strip().replace('{zipfile_name}', zipfile_name)
 
-def _message_html_header(speaker, datetime, message, first_speaker=None):
-    is_own_message = speaker == first_speaker
-    message_class = "sent" if not is_own_message else "received"
-    bg_color = '#ffffff' if is_own_message else '#f0f0f0'
-    return f"""
-    <div class="message {message_class} clearfix" style="background-color: {bg_color};">
-    <div class="sender">{speaker}</div>
-    <div class="content">
-    """.strip()
 
-def _message_html_footer(speaker, datetime, message, first_speaker=None):
-    is_own_message = speaker == first_speaker
-    return f"""
-    </div>
-    <span class="timestamp">{datetime}</span>
-    </div>
-    """.strip()
-
-def _message_html_media_tag(zip_filename, attachment_name):
+def media_tag(zip_filename, attachment_name):
     media_path = data_url(zip_filename, attachment_name)
     if attachment_name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
-        return f'<img class="media" src="{media_path}"><br>'
+        media_tag = f'<img class="media" src="{media_path}"><br>'
     elif attachment_name.lower().endswith('.mp4'):
-        html = f'<video class="media" controls><source src="{media_path}" type="video/mp4"></video><br>'
+        media_tag = f'<video class="media" controls><source src="{media_path}" type="video/mp4"></video><br>'
     elif attachment_name.lower().endswith('.opus'):
-        html = f'<audio class="media" controls><source src="{media_path}" type="audio/ogg"></audio><br>'
+        media_tag = f'<audio class="media" controls><source src="{media_path}" type="audio/ogg"></audio><br>'
     elif attachment_name.lower().endswith('.wav'):
-        html = f'<audio class="media" controls><source src="{media_path}" type="audio/wav"></audio><br>'
+        media_tag = f'<audio class="media" controls><source src="{media_path}" type="audio/wav"></audio><br>'
     elif attachment_name.lower().endswith('.mp3'):
-        html = f'<audio class="media" controls><source src="{media_path}" type="audio/mpeg"></audio><br>'
+        media_tag = f'<audio class="media" controls><source src="{media_path}" type="audio/mpeg"></audio><br>'
     elif attachment_name.lower().endswith('.m4a'):
-        html = f'<audio class="media" controls><source src="{media_path}" type="audio/mp4"></audio><br>'
+        media_tag = f'<audio class="media" controls><source src="{media_path}" type="audio/mp4"></audio><br>'
     else:
-        html = f'<a href="{media_path}">📎 {attachment_name}</a><br>'
-    return html
+        media_tag = f'<a href="{media_path}">📎 {attachment_name}</a><br>'
+    return media_tag
 
 def message_html(speaker, datetime, message, first_speaker, media_url, zip_filename=None):
-    media_html = _message_html_media_tag(zip_filename, media_url) if media_url else ''
+    is_first = speaker == first_speaker
+    message_class = "sent" if not is_first else "received"
+    bg_color = '#ffffff' if is_first else '#f0f0f0'
+
+    media_html = media_tag(zip_filename, media_url) if media_url else ''
     message = message.replace("\n",'<br />') if message else ''
+
     return f"""
-    {_message_html_header(speaker, datetime, message, first_speaker)}
+    <div class="message {message_class} clearfix" style="background-color: {bg_color};">
+      <div class="sender">{speaker}</div>
+        <div class="content">
         {message}
         {media_html}
-    {_message_html_footer(speaker, datetime, message, first_speaker)}
+        </div>
+      <span class="timestamp">{datetime}</span>
+    </div>
     """.strip()
 
 def footer_html():
