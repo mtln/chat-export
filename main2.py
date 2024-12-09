@@ -57,13 +57,13 @@ def exit_with_instructions():
     print(INSTRUCTIONS)
     exit(1)
 
-def header_html():
+def header_html(zipfile_name):
     return """
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Slippery Slinky Scam</title>
+    <title>Chat from {zipfile_name}</title>
     <style>
 
                     body {
@@ -133,7 +133,8 @@ def header_html():
 </head>
 <body>
     <div class="chat-container">
-    """.strip()
+    <h1>Chat from {zipfile_name}</h1>
+    """.strip().replace('{zipfile_name}', zipfile_name)
 
 def _message_html_header(speaker, datetime, message, first_speaker=None):
     is_own_message = speaker == first_speaker
@@ -224,7 +225,7 @@ def extract_messages(data):
     return parsed_messages
 
 def page_html(parsed_messages, zip_filename):
-    pieces = [header_html()]
+    pieces = [header_html(zip_filename)]
     first_speaker = parsed_messages[0]['speaker']
     for o in parsed_messages:
         message = o['message']
