@@ -1,10 +1,4 @@
-import re
-import os
-from datetime import datetime, timedelta
-import base64
-import mimetypes
-import zipfile
-
+import re, os, base64, zipfile
 
 THIS_SCRIPT = os.path.split(__file__)[-1]
 INSTRUCTIONS = f"""
@@ -188,10 +182,6 @@ def footer_html():
 def validate_zip(zip_filename):
     zip_filename = sys.argv[-1]
     if not 'zip' in zip_filename:
-        exit_with_instructions()
-        exit(1)
-    zip_mime = mimetypes.guess_type(zip_filename)[0]
-    if zip_mime != 'application/zip':
         print(f"Error: {zip_filename} not a zip file")
         exit_with_instructions()
 
@@ -246,7 +236,7 @@ if __name__ == "__main__":
     # Validate the input
     validate_zip(zip_filename)
 
-    html_filename = zip_filename.replace('.zip', '.html')
+    html_filename = zip_filename.replace('.zip','') + '.html'
 
     # Read the chat data
     data = read_file_from_zip(zip_filename, '_chat.txt')
