@@ -8,7 +8,7 @@ import zipfile
 
 THIS_SCRIPT = os.path.split(__file__)[-1]
 INSTRUCTIONS = f"""
-Usage: python {THIS_SCRIPT} your-filename.html your-mobile-export.zip
+Usage: python {THIS_SCRIPT} your-whatsapp-export.zip
 
 This script reads a WhatsApp chat export and prints out 
 an HTML file with the chat messages and attached media.
@@ -241,13 +241,12 @@ def page_html(parsed_messages, zip_filename):
 if __name__ == "__main__":
     # Input data
     import sys
-    if len(sys.argv) < 3:
-        exit_with_instructions()
     zip_filename = sys.argv[-1]
-    html_filename = sys.argv[-2]
 
     # Validate the input
     validate_zip(zip_filename)
+
+    html_filename = zip_filename.replace('.zip', '.html')
 
     # Read the chat data
     data = read_file_from_zip(zip_filename, '_chat.txt')
