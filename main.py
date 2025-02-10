@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.4.0"
+version = "0.5.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -27,8 +27,8 @@ class WhatsAppChatRenderer:
         self.media_dir = os.path.join(self.output_dir, "media")
         # Replace the single chat_pattern with a map of patterns
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?) - (.*?): (.*)')
+            'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
         self.message_date_format = "%d.%m.%y"
         self.own_name = None
@@ -170,7 +170,7 @@ class WhatsAppChatRenderer:
 
     def parse_message_date(self, date_str):
         """Parse the date from a message timestamp."""
-        # Remove time part
+        # Remove time part and any AM/PM indicator
         date_str = date_str.split(',')[0]
         return datetime.strptime(date_str, self.message_date_format).date()
 
@@ -240,7 +240,12 @@ class WhatsAppChatRenderer:
             
             # Check if the chat file exists in the zip archive
             if chat_file not in zip_ref.namelist():
-                raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+                print(f"checking for {zip_base_name.replace(".", " ")+".txt"} in {zip_ref.namelist()}")
+                if not self.is_ios and zip_base_name.replace(".", " ")+".txt" in zip_ref.namelist():
+                    print(f"found {zip_base_name.replace(".", " ")+".txt"} in {zip_ref.namelist()}")
+                    chat_file = zip_base_name.replace(".", " ")+".txt"
+                else:
+                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
 
             
             with zip_ref.open(chat_file) as f:
