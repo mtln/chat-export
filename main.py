@@ -240,9 +240,7 @@ class WhatsAppChatRenderer:
             
             # Check if the chat file exists in the zip archive
             if chat_file not in zip_ref.namelist():
-                print(f"checking for {zip_base_name.replace(".", " ")+".txt"} in {zip_ref.namelist()}")
                 if not self.is_ios and zip_base_name.replace(".", " ")+".txt" in zip_ref.namelist():
-                    print(f"found {zip_base_name.replace(".", " ")+".txt"} in {zip_ref.namelist()}")
                     chat_file = zip_base_name.replace(".", " ")+".txt"
                 else:
                     raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
