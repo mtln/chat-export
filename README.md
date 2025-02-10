@@ -33,7 +33,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 2. **Transfer the File:** Move the exported ZIP file to your computer. If you have sent it to yourself with WhatsApp, you can download it with WhatsApp Web or with the WhatsApp App on your computer. Delete the WhatsApp message afterwards to save space.
 
 3. **Download and Run the Tool:** 
-   - For Windows, download [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/ChatExport.exe).
+   - For Windows, download [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.exe).
 
    You will have to copy the file away from your Downloads folder to another folder, e.g. Documents. Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway.
 
