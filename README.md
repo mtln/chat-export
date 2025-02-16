@@ -48,6 +48,16 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
 
+   **OR**
+
+   Use docker to run.
+
+   * Create c:/dev/whatsapp_export 
+   * In the folder put chat.zip containing your conversation
+   * Go to the project and run "BuildDockerImage.ps1"
+   * Run "RunImage.ps1"
+   * In the prompt, enter: /app/data/chat.zip
+
 **Usage**
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
