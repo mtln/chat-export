@@ -77,6 +77,8 @@ class WhatsAppChatRenderer:
             r'(.+?) \(file allegato\)',
             # Portuguese
             r'(.+?) \(arquivo anexado\)',
+            # Swedish
+            r'(.+?) \(bifogad fil\)',
         ]
         self.has_media = False
         self.from_date = None
