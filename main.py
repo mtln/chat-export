@@ -8,7 +8,7 @@ import sys
 import webbrowser
 
 
-version = "0.5.0"
+version = "0.5.1"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -77,6 +77,8 @@ class WhatsAppChatRenderer:
             r'(.+?) \(file allegato\)',
             # Portuguese
             r'(.+?) \(arquivo anexado\)',
+            # Swedish
+            r'(.+?) \(bifogad fil\)',
         ]
         self.has_media = False
         self.from_date = None
