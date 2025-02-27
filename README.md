@@ -6,6 +6,10 @@ This tool converts a WhatsApp chat export into two HTML formats: one with inline
 Video Tutorial (still refers to the previously used tool name instead of `chat-export`):  
 [![YouTube](https://img.youtube.com/vi/s1dMO8pjkC8/0.jpg)](https://www.youtube.com/watch?v=s1dMO8pjkC8)"
 
+## Binary Release Downloads
+* Windows: [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.exe)
+* Mac: [chat-export](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export)
+
 ## Why is this useful?
 The HTML export is:
 
@@ -37,6 +41,10 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    - For Windows, download [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.exe).
 
    You will have to copy the file away from your Downloads folder to another folder, e.g. Documents. Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway.
+
+   - For Mac, download [chat-export](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export)
+
+   These are executables (no installation required, just download and double-click). They are built with pyinstaller.
 
    **OR**
 
