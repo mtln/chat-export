@@ -29,21 +29,34 @@ def macos_file_picker():
     pip install pyobjc-framework-Cocoa
     for this to work
     """
+    # Initialize NSApplication if it hasn't been
     app = NSApplication.sharedApplication()
-    # Activate the application and bring it to front
-    app.activateIgnoringOtherApps_(True)
+    app.setActivationPolicy_(1)  # NSApplicationActivationPolicyRegular
     
-    panel = NSOpenPanel.openPanel()
+    # Create and configure the panel first
+    panel = NSOpenPanel.alloc().init()
     panel.setCanChooseFiles_(True)
     panel.setCanChooseDirectories_(False)
     panel.setAllowsMultipleSelection_(False)
     panel.setTitle_("Select WhatsApp Chat Export ZIP File")
     panel.setPrompt_("Open")
-
-    # Run the panel modally
-    if panel.runModal():
-        url = panel.URLs()[0]
-        return str(url.path())  # Call path() as a method and convert to string
+    
+    # Set file type filter to only show .zip files
+    panel.setAllowedFileTypes_(["zip"])
+    
+    # Bring app and panel to front
+    app.activateIgnoringOtherApps_(True)
+    
+    # Run the panel
+    response = panel.runModal()
+    
+    # Clean up
+    app.setActivationPolicy_(0)  # NSApplicationActivationPolicyRegular
+    
+    if response == 1:  # NSModalResponseOK
+        urls = panel.URLs()
+        if urls and len(urls):
+            return str(urls[0].path())
     return None
 
 def windows_file_picker():
