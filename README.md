@@ -8,7 +8,7 @@ Video Tutorial (still refers to the previously used tool name instead of `chat-e
 
 ## Binary Release Downloads
 * Windows: [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.exe)
-* Mac: [chat-export](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export)
+* Mac: [chat-export.dmg](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.dmg)
 
 ## Why is this useful?
 The HTML export is:
@@ -42,7 +42,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    You will have to copy the file away from your Downloads folder to another folder, e.g. Documents. Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway.
 
-   - For Mac, download [chat-export](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export)
+   - For Mac, download [chat-export.dmg](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.dmg)
 
    These are executables (no installation required, just download and double-click). They are built with pyinstaller.
 
