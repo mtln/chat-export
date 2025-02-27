@@ -1,3 +1,65 @@
+import os
+import sys
+
+# Attempt to import PyObjC modules for macOS file dialog support
+if sys.platform == 'darwin':
+    try:
+        from AppKit import NSOpenPanel, NSApplication, NSApp
+        import objc
+        pyobjc_available = True
+    except ImportError:
+        pyobjc_available = False
+else:
+    pyobjc_available = False
+
+# Attempt to import pywin32 modules for Windows file dialog support
+if sys.platform == 'win32':
+    try:
+        import win32ui
+        import win32con
+        pywin32_available = True
+    except ImportError:
+        pywin32_available = False
+else:
+    pywin32_available = False
+
+
+def macos_file_picker():
+    """Present a native macOS file dialog to select a file.
+    pip install pyobjc-framework-Cocoa
+    for this to work
+    """
+    app = NSApplication.sharedApplication()
+    # Activate the application and bring it to front
+    app.activateIgnoringOtherApps_(True)
+    
+    panel = NSOpenPanel.openPanel()
+    panel.setCanChooseFiles_(True)
+    panel.setCanChooseDirectories_(False)
+    panel.setAllowsMultipleSelection_(False)
+    panel.setTitle_("Select WhatsApp Chat Export ZIP File")
+    panel.setPrompt_("Open")
+
+    # Run the panel modally
+    if panel.runModal():
+        url = panel.URLs()[0]
+        return str(url.path())  # Call path() as a method and convert to string
+    return None
+
+def windows_file_picker():
+    """Use the native Windows file picker with pywin32.
+    pip install pywin32
+    for this to work
+    """
+    dlg = win32ui.CreateFileDialog(1)  # 1 = Open dialog, 0 = Save dialog
+    dlg.SetOFNTitle("Select WhatsApp Chat Export ZIP File")
+    dlg.SetOFNInitialDir(os.path.expanduser("~"))  # Start in user's home directory
+    # Use SetTemplate instead of SetOFNFilter for Windows file dialog
+    dlg.DoModal()
+    if dlg.GetPathName():
+        return dlg.GetPathName()
+    return None
+
 import zipfile
 import os
 from datetime import datetime, date
@@ -8,7 +70,7 @@ import sys
 import webbrowser
 
 
-version = "0.5.1"
+version = "0.6.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -520,6 +582,13 @@ def check_tkinter_availability():
         return False
 
 def browse_zip_file():
+    if sys.platform == 'darwin' and pyobjc_available:
+        result = macos_file_picker()
+        return result
+    elif sys.platform == 'win32' and pywin32_available:
+        result = windows_file_picker()
+        return result
+
     # Check tkinter availability first
     if not check_tkinter_availability():
         # Fallback to command line input
@@ -554,6 +623,7 @@ def main():
     print(f"Welcome to chat-export v{version}")
     print("----------------------------------------")
     print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
+    success = False
     try:
         selected_zip_file = browse_zip_file()
         if not selected_zip_file:
@@ -567,6 +637,7 @@ def main():
             if renderer.has_media:
                 open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
             open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
+        success = True
     
     except FileNotFoundError as e:
         print(f"\nError: {e}")
@@ -575,7 +646,8 @@ def main():
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
 
+    if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
+        webbrowser.open(donate_link)
+
 if __name__ == "__main__":
     main()
-    if input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
-        webbrowser.open(donate_link)
