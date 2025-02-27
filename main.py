@@ -3,7 +3,6 @@ import sys
 
 # Attempt to import PyObjC modules for macOS file dialog support
 if sys.platform == 'darwin':
-    print("macOS detected")
     try:
         from AppKit import NSOpenPanel, NSApplication, NSApp
         import objc
@@ -15,7 +14,6 @@ else:
 
 # Attempt to import pywin32 modules for Windows file dialog support
 if sys.platform == 'win32':
-    print("Windows detected")
     try:
         import win32ui
         import win32con
@@ -25,7 +23,6 @@ if sys.platform == 'win32':
 else:
     pywin32_available = False
 
-print(pyobjc_available)
 
 def macos_file_picker():
     """Present a native macOS file dialog to select a file.
@@ -57,8 +54,9 @@ def windows_file_picker():
     dlg = win32ui.CreateFileDialog(1)  # 1 = Open dialog, 0 = Save dialog
     dlg.SetOFNTitle("Select WhatsApp Chat Export ZIP File")
     dlg.SetOFNInitialDir(os.path.expanduser("~"))  # Start in user's home directory
-    dlg.SetOFNFilter("ZIP Files (*.zip)|*.zip|")
-    if dlg.DoModal() == win32con.IDOK:
+    # Use SetTemplate instead of SetOFNFilter for Windows file dialog
+    dlg.DoModal()
+    if dlg.GetPathName():
         return dlg.GetPathName()
     return None
 
@@ -72,7 +70,7 @@ import sys
 import webbrowser
 
 
-version = "0.5.1"
+version = "0.6.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
