@@ -49,15 +49,18 @@ def macos_file_picker():
 def windows_file_picker():
     """Use the native Windows file picker with pywin32.
     pip install pywin32
-    for this to work
+    for this to work.
     """
-    dlg = win32ui.CreateFileDialog(1)  # 1 = Open dialog, 0 = Save dialog
+    # Define file filter format: "Description|*.extension|"
+    file_filter = "ZIP Files (*.zip)|*.zip|All Files (*.*)|*.*|"
+
+    dlg = win32ui.CreateFileDialog(1, None, None, 0, file_filter)  # Open dialog (1)
     dlg.SetOFNTitle("Select WhatsApp Chat Export ZIP File")
     dlg.SetOFNInitialDir(os.path.expanduser("~"))  # Start in user's home directory
-    # Use SetTemplate instead of SetOFNFilter for Windows file dialog
-    dlg.DoModal()
-    if dlg.GetPathName():
+
+    if dlg.DoModal() == 1:  # If the user selects a file
         return dlg.GetPathName()
+
     return None
 
 import zipfile
