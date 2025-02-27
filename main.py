@@ -1,3 +1,42 @@
+import os
+import sys
+
+# Attempt to import PyObjC modules for macOS file dialog support
+if sys.platform == 'darwin':
+    print("macOS detected")
+    try:
+        from AppKit import NSOpenPanel, NSApplication, NSApp
+        import objc
+        pyobjc_available = True
+    except ImportError:
+        pyobjc_available = False
+else:
+    pyobjc_available = False
+
+print(pyobjc_available)
+
+def macos_file_picker():
+    """Present a native macOS file dialog to select a file.
+    pip install pyobjc-framework-Cocoa
+    for this to work
+    """
+    app = NSApplication.sharedApplication()
+    # Activate the application and bring it to front
+    app.activateIgnoringOtherApps_(True)
+    
+    panel = NSOpenPanel.openPanel()
+    panel.setCanChooseFiles_(True)
+    panel.setCanChooseDirectories_(False)
+    panel.setAllowsMultipleSelection_(False)
+    panel.setTitle_("Select WhatsApp Chat Export ZIP File")
+    panel.setPrompt_("Open")
+
+    # Run the panel modally
+    if panel.runModal():
+        url = panel.URLs()[0]
+        return str(url.path())  # Call path() as a method and convert to string
+    return None
+
 import zipfile
 import os
 from datetime import datetime, date
@@ -520,6 +559,10 @@ def check_tkinter_availability():
         return False
 
 def browse_zip_file():
+    if sys.platform == 'darwin' and pyobjc_available:
+        result = macos_file_picker()
+        return result
+
     # Check tkinter availability first
     if not check_tkinter_availability():
         # Fallback to command line input
