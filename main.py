@@ -153,8 +153,10 @@ class WhatsAppChatRenderer:
             r'(.+?) \(fichier joint\)',
             # Italian
             r'(.+?) \(file allegato\)',
-            # Portuguese
+            # Portuguese (BR)
             r'(.+?) \(arquivo anexado\)',
+            # Portuguese (PT)
+            r'(.+?) \(ficheiro anexado\)',
             # Swedish
             r'(.+?) \(bifogad fil\)',
         ]
