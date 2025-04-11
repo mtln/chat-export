@@ -106,7 +106,7 @@ class WhatsAppChatRenderer:
         # Replace the single chat_pattern with a map of patterns
         self.chat_patterns = {
             'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
+            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
         self.message_date_format = "%d.%m.%y"
         self.own_name = None
@@ -159,6 +159,8 @@ class WhatsAppChatRenderer:
             r'(.+?) \(ficheiro anexado\)',
             # Swedish
             r'(.+?) \(bifogad fil\)',
+            # Dutch
+            r'(.+?) \(bestand bijgevoegd\)',
         ]
         self.has_media = False
         self.from_date = None
@@ -219,7 +221,7 @@ class WhatsAppChatRenderer:
         for line in chat_content.split('\n'):
             if not pattern.match(line):
                 continue
-            date_str = line.replace('[', '').split(',')[0]
+            date_str = re.split(', | ', line.replace('[',''))[0]
             first, second, _ = date_str.split(deliminator)
             # convert to int
             first = int(first)
@@ -253,7 +255,7 @@ class WhatsAppChatRenderer:
     def parse_message_date(self, date_str):
         """Parse the date from a message timestamp."""
         # Remove time part and any AM/PM indicator
-        date_str = date_str.split(',')[0]
+        date_str = re.split(', | ',  date_str.replace('[',''))[0]
         return datetime.strptime(date_str, self.message_date_format).date()
 
 
