@@ -86,7 +86,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.0"
+version = "0.6.1"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
