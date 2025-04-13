@@ -140,7 +140,7 @@ class WhatsAppChatRenderer:
         # Various attachment markers in different languages
         self.attachment_patterns = [
             # iOS patterns
-            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado):\s*([^>]+)>',
+            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd):\s*([^>]+)>',
             
             # Android patterns
             # English
