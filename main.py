@@ -140,7 +140,7 @@ class WhatsAppChatRenderer:
         # Various attachment markers in different languages
         self.attachment_patterns = [
             # iOS patterns
-            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd|добавлен):\s*([^>]+)>',
+            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd|д[\u0400-\u04FF]{7}):\s*([^>]+)>',
             
             # Android patterns
             # English
@@ -162,7 +162,7 @@ class WhatsAppChatRenderer:
             # Dutch
             r'(.+?) \(bestand bijgevoegd\)',
             # Russian
-            r'(.+?) \(файл добавлен\)',
+            r'(.+?) \(ф[\u0400-\u04FF ]{12}\)',
         ]
         self.has_media = False
         self.from_date = None

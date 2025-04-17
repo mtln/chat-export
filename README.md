@@ -7,8 +7,7 @@ Video Tutorial (still refers to the previously used tool name instead of `chat-e
 [![YouTube](https://img.youtube.com/vi/s1dMO8pjkC8/0.jpg)](https://www.youtube.com/watch?v=s1dMO8pjkC8)"
 
 ## Binary Release Downloads
-* Windows: [chat-export.exe](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.exe)
-* Mac: [chat-export.dmg](https://raw.githubusercontent.com/mtln/chat-export/refs/heads/binary_releases/chat-export.dmg)
+* Windows: [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe)
 
 ## Why is this useful?
 The HTML export is:
