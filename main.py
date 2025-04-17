@@ -2,6 +2,7 @@ import os
 import sys
 
 # Attempt to import PyObjC modules for macOS file dialog support
+# for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
     try:
         from AppKit import NSOpenPanel, NSApplication, NSApp
