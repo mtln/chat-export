@@ -82,6 +82,7 @@ WhatsApp chat exports vary depending on your phone’s system language. Currentl
 * Portugese (PT and BR)
 * Swedish
 * Dutch (so far only tested on Android)
+* Russian
 
 If your language is not supported, please let me know.
 

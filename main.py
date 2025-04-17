@@ -86,7 +86,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.1"
+version = "0.6.2"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -140,7 +140,7 @@ class WhatsAppChatRenderer:
         # Various attachment markers in different languages
         self.attachment_patterns = [
             # iOS patterns
-            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd):\s*([^>]+)>',
+            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd|добавлен):\s*([^>]+)>',
             
             # Android patterns
             # English
@@ -161,6 +161,8 @@ class WhatsAppChatRenderer:
             r'(.+?) \(bifogad fil\)',
             # Dutch
             r'(.+?) \(bestand bijgevoegd\)',
+            # Russian
+            r'(.+?) \(файл добавлен\)',
         ]
         self.has_media = False
         self.from_date = None
