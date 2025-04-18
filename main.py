@@ -210,6 +210,9 @@ class WhatsAppChatRenderer:
             if pattern.match(line):
                 first_line = line
                 break
+        
+        if first_line is None:
+            raise ValueError(f"Could not determine the date format of the chat: {chat_content.split('\n')[0]}")
 
         first_line_date = first_line.split(',')[0].replace('[', '')
         # find first non-digit in the date string
@@ -253,7 +256,7 @@ class WhatsAppChatRenderer:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
                 continue
-        raise ValueError(f"Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
 
     def parse_message_date(self, date_str):
         """Parse the date from a message timestamp."""
