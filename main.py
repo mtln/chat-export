@@ -1,6 +1,6 @@
 import os
 import sys
-
+import traceback
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -87,7 +87,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.2"
+version = "0.6.3"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -276,7 +276,6 @@ class WhatsAppChatRenderer:
         print("\nOptional: Enter date range to filter messages")
         print("Supported formats: MM/DD/YYYY, DD.MM.YYYY, MM/DD/YY, DD.MM.YY")
         print("Leave empty to skip")
-        
         while True:
             try:
                 from_date_str = input("From date (optional): ").strip()
@@ -668,6 +667,7 @@ def main():
         print(f"\nError: {e}")
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
+        print(traceback.format_exc())
 
     if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
         webbrowser.open(donate_link)
