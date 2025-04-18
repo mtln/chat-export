@@ -87,7 +87,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.3"
+version = "0.6.4"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -106,8 +106,8 @@ class WhatsAppChatRenderer:
         self.media_dir = os.path.join(self.output_dir, "media")
         # Replace the single chat_pattern with a map of patterns
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
         self.message_date_format = "%d.%m.%y"
         self.own_name = None
@@ -221,8 +221,13 @@ class WhatsAppChatRenderer:
                 deliminator = char
                 break
         
+        # year might be in position 0 or 2, i.e. 2018-12-22 vs 22.12.18 vs 22.12.2018
+        if len(first_line_date.split(deliminator)[0]) == 4:
+            return f'%Y{deliminator}%m{deliminator}%d'
+        # year is in position 2
         # check if year is 2 or 4 digits
         year_pattern = '%y' if len(first_line_date.split(deliminator)[2]) == 2 else '%Y'
+        # need to find out if month or day comes first.
         day_before_month = True
         for line in chat_content.split('\n'):
             if not pattern.match(line):
@@ -674,6 +679,9 @@ def main():
 
     if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
         webbrowser.open(donate_link)
+    if not success:
+        print("Press enter to exit")
+        input()
 
 if __name__ == "__main__":
     main()
