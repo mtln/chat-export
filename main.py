@@ -1,6 +1,6 @@
 import os
 import sys
-
+import traceback
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -87,7 +87,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.2"
+version = "0.6.4"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -106,8 +106,8 @@ class WhatsAppChatRenderer:
         self.media_dir = os.path.join(self.output_dir, "media")
         # Replace the single chat_pattern with a map of patterns
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,2}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,2}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
         self.message_date_format = "%d.%m.%y"
         self.own_name = None
@@ -210,6 +210,9 @@ class WhatsAppChatRenderer:
             if pattern.match(line):
                 first_line = line
                 break
+        
+        if first_line is None:
+            raise ValueError(f"Could not determine the date format of the chat: {chat_content.split('\n')[0]}")
 
         first_line_date = first_line.split(',')[0].replace('[', '')
         # find first non-digit in the date string
@@ -218,8 +221,13 @@ class WhatsAppChatRenderer:
                 deliminator = char
                 break
         
+        # year might be in position 0 or 2, i.e. 2018-12-22 vs 22.12.18 vs 22.12.2018
+        if len(first_line_date.split(deliminator)[0]) == 4:
+            return f'%Y{deliminator}%m{deliminator}%d'
+        # year is in position 2
         # check if year is 2 or 4 digits
         year_pattern = '%y' if len(first_line_date.split(deliminator)[2]) == 2 else '%Y'
+        # need to find out if month or day comes first.
         day_before_month = True
         for line in chat_content.split('\n'):
             if not pattern.match(line):
@@ -253,7 +261,7 @@ class WhatsAppChatRenderer:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
                 continue
-        raise ValueError(f"Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
 
     def parse_message_date(self, date_str):
         """Parse the date from a message timestamp."""
@@ -276,7 +284,6 @@ class WhatsAppChatRenderer:
         print("\nOptional: Enter date range to filter messages")
         print("Supported formats: MM/DD/YYYY, DD.MM.YYYY, MM/DD/YY, DD.MM.YY")
         print("Leave empty to skip")
-        
         while True:
             try:
                 from_date_str = input("From date (optional): ").strip()
@@ -668,9 +675,13 @@ def main():
         print(f"\nError: {e}")
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
+        print(traceback.format_exc())
 
     if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
         webbrowser.open(donate_link)
+    if not success:
+        print("Press enter to exit")
+        input()
 
 if __name__ == "__main__":
     main()
