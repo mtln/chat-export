@@ -8,6 +8,8 @@ Video Tutorial (still refers to the previously used tool name instead of `chat-e
 
 ## Binary Release Downloads
 * Windows: [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe)
+* Mac: [chat-export-installer.pkg](https://github.com/mtln/chat-export/releases/latest/download/chat-export-installer.pkg)
+
 
 ## Why is this useful?
 The HTML export is:
@@ -41,8 +43,17 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway. An EV code signing certificate for Windows costs a lot. If I get enough donations, I will buy one, so I can release signed exe files.
 
+   - For Mac, download [chat-export-installer.pkg](https://github.com/mtln/chat-export/releases/latest/download/chat-export-installer.pkg)
 
-   These are executables (no installation required, just download and double-click). They are built with pyinstaller.
+   Once installed on Mac:
+   1. Open the **Terminal** app (e.g. by typing "terminal" in Spotlight Search).
+   2. Type: `chat-export`
+    
+   This will start the chat export tool from anywhere in the terminal.
+
+   To uninstall `chat-export` from Mac, open the Terminal and run: `sudo rm /usr/local/bin/chat-export`
+
+   The executables have been built with pyinstaller.
 
    **OR**
 
