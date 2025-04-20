@@ -94,14 +94,14 @@ productbuild \
   --distribution distribution.xml \
   --resources resources \
   --package-path . \
-  chat-export-installer.pkg
+  chat-export-installer-unsigned.pkg
 
 # Sign and notarize
-productsign --sign "Developer ID Installer: Andri Kraemer (9NCXVF3Y67)" chat-export-installer.pkg chat-export.pkg
+productsign --sign "Developer ID Installer: Andri Kraemer (9NCXVF3Y67)" chat-export-installer-unsigned.pkg chat-export-installer.pkg
 sudo sntp -sS time.apple.com
-xcrun notarytool submit chat-export.pkg --keychain-profile "notary-gfdev" --wait
+xcrun notarytool submit chat-export-installer.pkg --keychain-profile "notary-gfdev" --wait
 
-xcrun stapler staple chat-export.pkg
+xcrun stapler staple chat-export-installer.pkg
 
 # Cleanup
 rm -rf dist/chat-export
@@ -109,16 +109,17 @@ rm -rf build
 rm chat-export.spec
 rm -rf resources
 rm distribution.xml
-rm chat-export.pkg  # Remove unsigned component .pkg
+rm chat-export-installer-unsigned.pkg  # Remove unsigned component .pkg
+rm chat-export.pkg  
 
 # Deactivate virtual environment
 deactivate
 
 # Final message
 echo ""
-echo "✅ Build complete: chat-export.pkg is signed, notarized, and stapled."
+echo "✅ Build complete: chat-export-installer.pkg is signed, notarized, and stapled."
 echo ""
-echo "📦 To install, double-click chat-export.pkg."
+echo "📦 To install, double-click chat-export-installer.pkg."
 echo "💡 After install, open Terminal and run: chat-export"
 echo "🧹 To uninstall: sudo rm /usr/local/bin/chat-export"
 echo ""
