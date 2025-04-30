@@ -102,7 +102,7 @@ If your language is not supported, please let me know.
 * Linux
 
 ## Limitations
-There is information in chats, that is not included in the export.zip created by WhatsApp. As a consequence, this information cannot be rendered by chat-converter.
+There is information in chats, that is not included in the export.zip created by WhatsApp. As a consequence, this information cannot be rendered by chat-export.
 
 This includes:
 
