@@ -101,5 +101,14 @@ If your language is not supported, please let me know.
 * Mac
 * Linux
 
+## Limitations
+There is information in chats, that is not included in the export.zip created by WhatsApp. As a consequence, this information cannot be rendered by chat-export.
+
+This includes:
+
+* Reactions (thumbs up and other emojis that are not a stand-alone message, but created by long tapping a previous message)
+* Message relations (in WhatsApp, you can right-swipe a previous message and then write a message in relation to this)
+* Chat group metadata (e.g. list of all members, admins, ...)
+
 ## Disclaimer
 chat-export comes with no warranty. Use it responsibly and respect the privacy of other chat participants. The tool is not affiliated with WhatsApp or Meta.
