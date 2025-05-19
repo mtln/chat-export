@@ -87,7 +87,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.4"
+version = "0.6.5"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -334,12 +334,29 @@ class WhatsAppChatRenderer:
             
             # Check if the chat file exists in the zip archive
             if chat_file not in zip_ref.namelist():
-                if not self.is_ios and zip_base_name.replace(".", " ")+".txt" in zip_ref.namelist():
-                    chat_file = zip_base_name.replace(".", " ")+".txt"
-                else:
+                # Try to find a match by removing non-ASCII characters
+                if not self.is_ios:
+                    # Convert zip_base_name to ASCII only for comparison
+                    ascii_base_name = ''.join(c for c in zip_base_name if ord(c) < 128)
+                    # Look for potential matches
+                    for file in zip_ref.namelist():
+                        if file.endswith('.txt') and file not in media_in_zip:
+                            # Convert filename to ASCII only for comparison
+                            ascii_file = ''.join(c for c in file if ord(c) < 128)
+                            
+                            if ascii_file == f"{ascii_base_name}.txt" or ascii_file == f"{ascii_base_name.replace('.', ' ')}.txt":
+                                print(f"Found chat file with extended non-ASCII match: {file}, matched: {ascii_file}")
+                                chat_file = file
+                                break
+                    
+                    # Last fallback: check for space instead of dot
+                    if chat_file not in zip_ref.namelist() and zip_base_name.replace(".", " ")+".txt" in zip_ref.namelist():
+                        chat_file = zip_base_name.replace(".", " ")+".txt"
+                
+                # If still not found, raise error
+                if chat_file not in zip_ref.namelist():
                     raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
 
-            
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
         if self.has_media:
