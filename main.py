@@ -87,7 +87,7 @@ import sys
 import webbrowser
 
 
-version = "0.6.5"
+version = "0.6.6"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -168,6 +168,7 @@ class WhatsAppChatRenderer:
         self.has_media = False
         self.from_date = None
         self.until_date = None
+        self.re_render_dates = False
         self.date_formats = [
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
@@ -270,6 +271,25 @@ class WhatsAppChatRenderer:
         return datetime.strptime(date_str, self.message_date_format).date()
 
 
+    def re_render_with_day_of_week(self, date_str: str) -> str:
+        """Parse the date string using self.message_date_format and then re-render it including the day of week.
+        If something fails, returns the input date_str.
+        e.g. 4/18/25, 3:09:10 PM becomes Fri, 4/18/25, 3:09:10 PM.
+        31.08.2025 becomes Sun, 31.08.2025
+        """
+        try:
+            # Parse the date using the current message_date_format
+            parsed_date = self.parse_message_date(date_str)
+            day_of_week = parsed_date.strftime('%a')
+            # Re-render with day of week prefix
+            return f"{day_of_week}, {date_str}"
+        except (ValueError, AttributeError):
+            # If parsing fails, return the original string
+            return date_str
+
+    
+
+
     def is_message_in_date_range(self, timestamp):
         """Check if message timestamp falls within the specified date range."""
         msg_date = self.parse_message_date(timestamp)
@@ -305,6 +325,8 @@ class WhatsAppChatRenderer:
                 print(f"Error: {e}")
                 if input("Try again? [Y/n]: ").lower() == 'n':
                     break
+        
+        self.re_render_dates = input("\nDo you want the day of week added to the message timestamps? [Y/n]: ").strip().lower() != 'n'
 
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
@@ -606,7 +628,7 @@ class WhatsAppChatRenderer:
                 if cleaned_content:
                     html += f'{cleaned_content}'
                 html += '</div>'
-                html += f'<span class="timestamp">{timestamp}</span>'
+                html += f'<span class="timestamp">{self.re_render_with_day_of_week(timestamp) if self.re_render_dates else timestamp}</span>'
                 html += '</div>'
                 
 
