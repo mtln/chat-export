@@ -780,7 +780,7 @@ class WhatsAppChatRenderer:
                     bg_color = self.sender_color_map.get(sender, '#ffffff')
 
                     # Common message structure
-                    message_start = f'<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
+                    message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
                     sender_div = f'<div class="sender">{sender}</div>'
                     content_start = '<div class="content">'
                     content_end = '</div>'
