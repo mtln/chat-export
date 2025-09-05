@@ -88,7 +88,7 @@ import sys
 import webbrowser
 
 
-version = "0.7.0"
+version = "0.8.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -139,34 +139,13 @@ class WhatsAppChatRenderer:
         self.newline_marker = ' $NEWLINE$ '
         self.html_filename = 'chat.html'
         self.html_filename_media_linked = 'chat_media_linked.html'
-        # Various attachment markers in different languages
-        
+                
         self.attachment_patterns_android = [
-            # Android patterns
-            # English
-            r'(.+?) \(file attached\)',
-            # German
-            r'(.+?) \(Datei angehängt\)',
-            # Spanish
-            r'(.+?) \(archivo adjunto\)',
-            # French
-            r'(.+?) \(fichier joint\)',
-            # Italian
-            r'(.+?) \(file allegato\)',
-            # Portuguese (BR)
-            r'(.+?) \(arquivo anexado\)',
-            # Portuguese (PT)
-            r'(.+?) \(ficheiro anexado\)',
-            # Swedish
-            r'(.+?) \(bifogad fil\)',
-            # Dutch
-            r'(.+?) \(bestand bijgevoegd\)',
-            # Russian
-            r'(.+?) \(ф[\u0400-\u04FF ]{12}\)',
+            r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)',
         ]
         self.attachment_patterns_ios = [
             # iOS patterns
-            r'<(?:Anhang|attached|adjunto|joint|allegato|anexado|bifogad|bijgevoegd|д[\u0400-\u04FF]{7}):\s*([^>]+)>',
+            r'<\w{2,20}:\s*([^>]+)>',
         ]
         self.has_media = False
         self.from_date = None
@@ -780,7 +759,7 @@ class WhatsAppChatRenderer:
                     bg_color = self.sender_color_map.get(sender, '#ffffff')
 
                     # Common message structure
-                    message_start = f'<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
+                    message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
                     sender_div = f'<div class="sender">{sender}</div>'
                     content_start = '<div class="content">'
                     content_end = '</div>'

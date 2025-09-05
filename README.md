@@ -83,17 +83,9 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
 
-* English
-* German
-* French
-* Italian
-* Spanish
-* Portugese (PT and BR)
-* Swedish
-* Dutch (so far only tested on Android)
-* Russian
+chat-export has been tested with many languages and regional settings.
 
-If your language is not supported, please let me know.
+If it doesn't work for your language, please let me know.
 
 ## Supported Operating Systems
 
