@@ -540,6 +540,9 @@ class WhatsAppChatRenderer:
             float: left;
             margin-right: 35%;
         }
+        .message.whatsapp {
+            max-width: 100%
+        }
         .media {
             max-width: 100%;
             border-radius: 5px;
@@ -911,6 +914,9 @@ class WhatsAppChatRenderer:
                 .message.received {
                     float: left;
                     margin-right: 35%;
+                }
+                .message.whatsapp {
+                    max-width: 100%
                 }
                 .media {
                     max-width: 100%;
