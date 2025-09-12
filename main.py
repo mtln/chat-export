@@ -110,12 +110,17 @@ class WhatsAppChatRenderer:
             'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
             'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
+        self.whatsapp_patterns = {
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'), # TODO check if this applies to IOS
+            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*)')
+        }
         self.message_date_format = "%d.%m.%y"
         self.own_name = None
         self.attachments_to_extract = set()
         self.sender_colors = {
             'own': '#d9fdd3',    # WhatsApp green for own messages
             'default': '#ffffff', # White for the second sender
+            'whatsapp': '#20c063',
             # Additional colors for other senders
             'others': [
                 '#f0e6ff',  # Light purple
@@ -175,7 +180,10 @@ class WhatsAppChatRenderer:
         
         # Assign colors to senders
         self.sender_color_map[self.own_name] = self.sender_colors['own']
-        
+
+        # assign whatsapp color
+        self.sender_color_map['WhatsApp'] = self.sender_colors['whatsapp']
+
         # Assign white to the first other sender
         if other_senders:
             self.sender_color_map[other_senders[0]] = self.sender_colors['default']
@@ -379,15 +387,22 @@ class WhatsAppChatRenderer:
             # remove the Left-to-right_marks
             line = line.replace('‎','')
             pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
             match = pattern.match(line)
-            if match:
+            wamatch = wapattern.match(line)
+            if match or wamatch:
                 total_count += 1
                 if current_line:
                     processed_content.append(''.join(current_line))
                 # Only add messages within date range
-                if not self.is_message_in_date_range(match.group(1)):
-                    current_line = []
-                    continue
+                if match:
+                    if not self.is_message_in_date_range(match.group(1)):
+                        current_line = []
+                        continue
+                else:
+                    if not self.is_message_in_date_range(wamatch.group(1)):
+                        current_line = []
+                        continue
                 filtered_count += 1
                 current_line = [line]
             else:
@@ -577,19 +592,34 @@ class WhatsAppChatRenderer:
             f.write('<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>')
             
             pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-            
+
+            # pattern for whatsapp system messages
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+
             # Time the message processing loop
             loop_start_time = time.time()
             message_count = 0
             
             for line in chat_content.split('\n'):
                 match = pattern.match(line)
-                if match:
-                    timestamp, sender, content = match.groups()
-                    
+                wamatch = wapattern.match(line)
+
+                 # execute if something was found
+                if match or wamatch:
+                    if match:
+                        # normal message
+                        timestamp, sender, content = match.groups()
+                    elif wamatch:
+                        # system message has fixed sender
+                        timestamp, content = wamatch.groups()
+                        sender = "WhatsApp"
+
                     # Determine message alignment and background color
                     is_own_message = sender == self.own_name
+                    is_wa_message = sender == "WhatsApp"
                     message_class = "sent" if is_own_message else "received"
+                    if is_wa_message:
+                        message_class = 'whatsapp'
                     bg_color = self.sender_color_map.get(sender, '#ffffff')
 
                     f.write(f'<div class="message {message_class} clearfix" style="background-color: {bg_color};">')
@@ -683,6 +713,9 @@ class WhatsAppChatRenderer:
             float: left;
             margin-right: 35%;
         }
+        .message.whatsapp {
+            max-width: 100%
+        }
         .media {
             max-width: 100%;
             border-radius: 5px;
@@ -743,19 +776,35 @@ class WhatsAppChatRenderer:
             media_f.write(attribution)
             
             pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-            
+
+            # pattern for whatsapp system messages
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+
             # Time the message processing loop
             loop_start_time = time.time()
             message_count = 0
             
             for line in chat_content.split('\n'):
                 match = pattern.match(line)
-                if match:
-                    timestamp, sender, content = match.groups()
-                    
+                wamatch = wapattern.match(line)
+
+                # execute if something was found
+                if match or wamatch:
+
+                    if match:
+                        # normal message
+                        timestamp, sender, content = match.groups()
+                    elif wamatch:
+                        # system message has fixed sender
+                        timestamp, content = wamatch.groups()
+                        sender = "WhatsApp"
+
                     # Determine message alignment and background color
                     is_own_message = sender == self.own_name
+                    is_wa_message = sender == "WhatsApp"
                     message_class = "sent" if is_own_message else "received"
+                    if is_wa_message:
+                        message_class = 'whatsapp'
                     bg_color = self.sender_color_map.get(sender, '#ffffff')
 
                     # Common message structure
@@ -914,14 +963,31 @@ class WhatsAppChatRenderer:
         html += f'<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
         
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+
+        # pattern for whatsapp system messages
+        wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+
         for line in chat_content.split('\n'):
             match = pattern.match(line)
-            if match:
-                timestamp, sender, content = match.groups()
-                
+            wamatch = wapattern.match(line)
+
+            # execute if something was found
+            if match or wamatch:
+
+                if match:
+                    # normal message
+                    timestamp, sender, content = match.groups()
+                elif wamatch:
+                    # system message has fixed sender
+                    timestamp, content = wamatch.groups()
+                    sender = "WhatsApp"
+
                 # Determine message alignment and background color
                 is_own_message = sender == self.own_name
+                is_wa_message = sender == "WhatsApp"
                 message_class = "sent" if is_own_message else "received"
+                if is_wa_message:
+                    message_class = 'whatsapp'
                 bg_color = self.sender_color_map.get(sender, '#ffffff')
 
                 html += f'<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
