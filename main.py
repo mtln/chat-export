@@ -1,3 +1,4 @@
+import difflib
 import os
 import sys
 import time
@@ -281,6 +282,11 @@ class WhatsAppChatRenderer:
             return False
         return True
 
+    @staticmethod
+    def most_similar(target: str, candidates: list[str]) -> str:
+        """Return the string from candidates most similar to target."""
+        return max(candidates, key=lambda c: difflib.SequenceMatcher(None, target, c).ratio())
+
     def process_chat(self):
         # Ask for optional date range
         print("\nOptional: Enter date range to filter messages")
@@ -323,49 +329,30 @@ class WhatsAppChatRenderer:
         media_in_zip = set()
 
         with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+            chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
+            if '_chat.txt' in chat_file_candidates:
+                self.is_ios = True
+                chat_file = '_chat.txt'
+            else:
+                self.is_ios = False
+                chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
+
             # Extract media files
             for file in zip_ref.namelist():
-                if file.lower() == '_chat.txt':
-                    self.is_ios = True
-                if file != f"{zip_base_name}.txt" and file != '_chat.txt':
-                    # zip_ref.extract(file, self.media_dir)
+                if file != chat_file:
                     media_in_zip.add(file)
                     self.has_media = True
             
-            # Find the chat file using the zip file's name or _chat.txt for iOS
-            chat_file = '_chat.txt' if self.is_ios else f"{zip_base_name}.txt"
-            
-            # Check if the chat file exists in the zip archive
+            # If still not found, raise error
             if chat_file not in zip_ref.namelist():
-                # Try to find a match by removing non-ASCII characters
-                if not self.is_ios:
-                    # Convert zip_base_name to ASCII only for comparison
-                    ascii_base_name = ''.join(c for c in zip_base_name if ord(c) < 128)
-                    # Look for potential matches
-                    for file in zip_ref.namelist():
-                        if file.endswith('.txt') and file not in media_in_zip:
-                            # Convert filename to ASCII only for comparison
-                            ascii_file = ''.join(c for c in file if ord(c) < 128)
-                            
-                            if ascii_file == f"{ascii_base_name}.txt" or ascii_file == f"{ascii_base_name.replace('.', ' ')}.txt":
-                                print(f"Found chat file with extended non-ASCII match: {file}, matched: {ascii_file}")
-                                chat_file = file
-                                break
-                    
-                    # Last fallback: check for space instead of dot
-                    if chat_file not in zip_ref.namelist() and zip_base_name.replace(".", " ")+".txt" in zip_ref.namelist():
-                        chat_file = zip_base_name.replace(".", " ")+".txt"
-                
-                # If still not found, raise error
-                if chat_file not in zip_ref.namelist():
-                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+                raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
 
             with zip_ref.open(chat_file) as f:
                 chat_content = f.read().decode('utf-8')
         if self.has_media:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments.")
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
         else:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments.")
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
             shutil.rmtree(self.media_dir)
         # Preprocess the chat content to handle multi-line messages
         processed_content = []
