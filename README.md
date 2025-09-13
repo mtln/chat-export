@@ -81,7 +81,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 
 ## Supported languages
-WhatsApp chat exports vary depending on your phone’s system language. Currently, this tool has been tested with:
+WhatsApp chat exports vary depending on your phone’s system language. 
 
 chat-export has been tested with many languages and regional settings.
 
