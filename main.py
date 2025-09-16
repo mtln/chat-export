@@ -1,8 +1,15 @@
+import argparse
 import difflib
 import os
 import sys
 import time
 import traceback
+import zipfile
+from datetime import datetime
+import re
+import shutil
+import webbrowser
+from pathlib import Path, PureWindowsPath, PurePosixPath
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -79,32 +86,113 @@ def windows_file_picker():
 
     return None
 
-import zipfile
-import os
-from datetime import datetime, date
-import re
-from pathlib import Path
-import shutil
-import sys
-import webbrowser
 
 
 version = "0.9.0"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
+def parse_path(path_str: str) -> Path:
+    """
+    Parse a path string safely, handling both Windows and Unix styles.
+    Returns a pathlib.Path object normalized to the current OS.
+    """
+    # Strip quotes from the path string if present
+    path_str = path_str.strip('"\'')
+    
+
+    # Decide whether it's Windows or Unix style by looking for a drive letter
+    if ":" in path_str[:3] or "\\" in path_str:
+        # Looks like Windows
+        pure = PureWindowsPath(path_str)
+    else:
+        # Looks like Unix/Posix
+        pure = PurePosixPath(path_str)
+
+    # Convert into an OS-specific Path (resolves separators automatically)
+    return Path(pure)
+
+def parse_arguments():
+    """Parse command line arguments for both interactive and non-interactive modes."""
+    parser = argparse.ArgumentParser(
+        description='Convert WhatsApp chat exports to HTML format',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  # Interactive mode (default)
+  python main.py
+
+  # Non-interactive mode
+  python main.py -n -z "chat.zip" -p "John Doe"
+
+  # With date filtering
+  python main.py -n -z "chat.zip" -p "John Doe" --from-date "01.01.2024" --until-date "31.12.2024"
+
+  # With custom output directory (creates /tmp/chat/ instead of ./chat/)
+  python main.py -n -z "chat.zip" -p "John Doe" -o "/tmp"
+        '''
+    )
+
+    parser.add_argument('-n', '--non-interactive',
+                       action='store_true',
+                       help='Run in non-interactive mode (requires -z and -p)')
+
+    parser.add_argument('-z', '--zip-file',
+                       type=str,
+                       help='Path to WhatsApp chat export ZIP file (required in non-interactive mode)')
+
+    parser.add_argument('-p', '--participant',
+                       type=str,
+                       help='Name of the participant that represents yourself (required in non-interactive mode)')
+
+    parser.add_argument('--from-date',
+                       type=str,
+                       help='Start date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+
+    parser.add_argument('--until-date',
+                       type=str,
+                       help='End date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+
+    parser.add_argument('-o', '--output-dir',
+                       type=str,
+                       help='Base directory where the ZIP-derived output folder will be created (default: current working directory)')
+
+    args = parser.parse_args()
+
+    # Validate non-interactive mode requirements
+    if args.non_interactive:
+        if not args.zip_file:
+            parser.error("Non-interactive mode requires --zip-file (-z)")
+        if not args.participant:
+            parser.error("Non-interactive mode requires --participant (-p)")
+
+    return args
+
 class WhatsAppChatRenderer:
-    def __init__(self, zip_path):
+    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
         # Validate zip file existence
         if not os.path.exists(zip_path):
             raise FileNotFoundError(f"Could not find the file: {zip_path}\nPlease check if the file path is correct.")
-        
+
         if not zip_path.lower().endswith('.zip'):
             raise ValueError(f"The file {zip_path} is not a zip file.\nPlease provide a valid WhatsApp chat export zip file.")
 
         self.zip_path = zip_path
-        self.output_dir = Path(zip_path).stem
-        self.chat_name = Path(zip_path).stem
+
+        # Pre-set values for non-interactive mode
+        self.from_date = from_date
+        self.until_date = until_date
+        self.participant_name = participant_name
+
+        # Set up output directory: base_output_dir/zip_filename or just zip_filename
+        zip_stem = Path(zip_path).stem
+        if base_output_dir:
+            # Normalize the base output directory path (handle Windows paths, quotes, etc.)
+            normalized_base_dir = parse_path(base_output_dir)
+            self.output_dir = os.path.join(normalized_base_dir, zip_stem)
+        else:
+            self.output_dir = zip_stem
+        self.chat_name = zip_stem
         self.media_dir = os.path.join(self.output_dir, "media")
         # Replace the single chat_pattern with a map of patterns
         self.chat_patterns = {
@@ -116,7 +204,7 @@ class WhatsAppChatRenderer:
             'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*)')
         }
         self.message_date_format = "%d.%m.%y"
-        self.own_name = None
+        self.own_name = participant_name
         self.attachments_to_extract = set()
         self.attachments_in_zip = set()
         self.sender_colors = {
@@ -150,8 +238,6 @@ class WhatsAppChatRenderer:
         self.attachment_pattern_android = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
         self.attachment_pattern_ios =  r'<\w{2,20}:\s*([^>]+)>'
         self.has_media = False
-        self.from_date = None
-        self.until_date = None
         self.re_render_dates = False
         self.date_formats = [
             "%d.%m.%Y",  # German format: DD.MM.YYYY
@@ -170,6 +256,18 @@ class WhatsAppChatRenderer:
                 sender = match.group(2)
                 senders.add(sender)
         return sorted(list(senders))
+
+    def validate_participant(self, participant_name, senders):
+        """Validate that the specified participant exists in the chat.
+        If not found, display all participants and raise an error."""
+        if participant_name not in senders:
+            print(f"\nError: Participant '{participant_name}' not found in the chat.")
+            print("\nFound the following participants in the chat:")
+            for i, sender in enumerate(senders, 1):
+                print(f"{i}. {sender}")
+            print("\nPlease use one of the names listed above exactly as shown.")
+            raise ValueError(f"Participant '{participant_name}' not found in chat")
+        return True
 
     def setup_sender_colors(self, senders):
         # Remove own name from senders list for color assignment
@@ -403,7 +501,6 @@ class WhatsAppChatRenderer:
             if filtered_count == 0:
                 raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(processed_content)} messages.")
-        # print(processed_content)
         # Get list of senders and let user choose their name
         senders = self.get_senders(chat_content)
         print("\nFound the following participants in the chat:")
@@ -436,7 +533,134 @@ class WhatsAppChatRenderer:
                     if file in self.attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
         print("Done.")
-                       
+
+    def process_chat_non_interactive(self):
+        """Process chat in non-interactive mode using pre-set parameters."""
+        # Validate date parameters if provided
+        if self.from_date:
+            try:
+                self.from_date = self.parse_date_input(self.from_date)
+            except ValueError as e:
+                raise ValueError(f"Invalid from-date format: {e}")
+
+        if self.until_date:
+            try:
+                self.until_date = self.parse_date_input(self.until_date)
+            except ValueError as e:
+                raise ValueError(f"Invalid until-date format: {e}")
+
+        if self.from_date and self.until_date and self.from_date > self.until_date:
+            raise ValueError("'From' date must be before 'until' date")
+
+        # Get the base name of the zip file without extension
+        zip_base_name = Path(self.zip_path).stem
+
+        if os.path.exists(self.output_dir):
+            print(f"Cleaning existing directory: {self.output_dir}")
+            shutil.rmtree(self.output_dir)
+
+        # Create fresh output directories
+        os.makedirs(self.output_dir)
+        os.makedirs(self.media_dir)
+
+        # Validate that it's a proper ZIP file
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
+                if '_chat.txt' in chat_file_candidates:
+                    self.is_ios = True
+                    chat_file = '_chat.txt'
+                else:
+                    self.is_ios = False
+                    chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
+
+                # Extract media files
+                for file in zip_ref.namelist():
+                    if file != chat_file:
+                        self.attachments_in_zip.add(file)
+                        self.has_media = True
+
+                # If still not found, raise error
+                if chat_file not in zip_ref.namelist():
+                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+
+                with zip_ref.open(chat_file) as f:
+                    chat_content = f.read().decode('utf-8')
+
+        except zipfile.BadZipFile:
+            raise ValueError(f"The file {self.zip_path} is not a valid ZIP file.")
+
+        if self.has_media:
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
+        else:
+            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
+            shutil.rmtree(self.media_dir)
+
+        # Preprocess the chat content to handle multi-line messages
+        processed_content = []
+        current_line = []
+        filtered_count = 0
+        total_count = 0
+
+        self.message_date_format = self.get_date_format(chat_content)
+        print(f"from date: {self.from_date}, until date: {self.until_date}")
+        for line in chat_content.split('\n'):
+            # remove the Left-to-right_marks
+            line = line.replace('‎', '')
+            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+            match = pattern.match(line)
+            wamatch = wapattern.match(line)
+            if match or wamatch:
+                total_count += 1
+                if current_line:
+                    processed_content.append(''.join(current_line))
+                # Only add messages within date range
+                if match:
+                    if not self.is_message_in_date_range(match.group(1)):
+                        current_line = []
+                        continue
+                else:
+                    if not self.is_message_in_date_range(wamatch.group(1)):
+                        current_line = []
+                        continue
+                filtered_count += 1
+                current_line = [line]
+            else:
+                if current_line:
+                    current_line.append(self.newline_marker + line)
+
+        # Don't forget to add the last message
+        if current_line:
+            processed_content.append(''.join(current_line))
+
+        # Join all processed lines with newlines
+        chat_content = '\n'.join(processed_content)
+        if self.from_date or self.until_date:
+            print(f"\n{filtered_count} of {total_count} messages match date range filter.")
+            if filtered_count == 0:
+                raise ValueError("No messages found in the specified date range. Aborting.")
+        print(f"Exporting {len(processed_content)} messages.")
+
+        # Get list of senders and validate the provided participant
+        senders = self.get_senders(chat_content)
+        self.validate_participant(self.own_name, senders)
+
+        # Setup color mapping for senders
+        self.setup_sender_colors(senders)
+
+        self.generate_both_html_files(chat_content)
+
+        if self.has_media:
+            print("Extracting attachments/media...")
+            # extract attachments of rendered messages
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                # Extract media files
+                for file in zip_ref.namelist():
+                    if file in self.attachments_to_extract:
+                        zip_ref.extract(file, self.media_dir)
+        print("Done.")
+
 
     @staticmethod
     def wrap_urls_with_anchor_tags(text):
@@ -749,38 +973,70 @@ def open_html_file_in_browser(html_file: Path):
     webbrowser.open(f"file://{file_path.as_posix()}")
 
 def main():
-    print(f"Welcome to chat-export v{version}")
-    print("----------------------------------------")
-    print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
-    success = False
-    try:
-        selected_zip_file = browse_zip_file()
-        if not selected_zip_file:
-            raise FileNotFoundError("No file selected.")
-        print(f"\nProcessing selected file: {selected_zip_file}...")
-        renderer = WhatsAppChatRenderer(selected_zip_file)
-        renderer.process_chat()
-        print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
-        open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
-        if open_in_browser != 'n':
-            if renderer.has_media:
-                open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
-            open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
-        success = True
-    
-    except FileNotFoundError as e:
-        print(f"\nError: {e}")
-    except ValueError as e:
-        print(f"\nError: {e}")
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}")
-        print(traceback.format_exc())
+    args = parse_arguments()
 
-    if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
-        webbrowser.open(donate_link)
-    if not success:
-        print("Press enter to exit")
-        input()
+    if args.non_interactive:
+        # Non-interactive mode
+        print(f"chat-export v{version} - Non-interactive mode")
+        print("----------------------------------------")
+        success = False
+        try:
+            print(f"Processing file: {args.zip_file}...")
+
+            # Parse dates if provided
+            from_date = args.from_date if args.from_date else None
+            until_date = args.until_date if args.until_date else None
+
+            renderer = WhatsAppChatRenderer(args.zip_file, from_date, until_date, args.participant, args.output_dir)
+            renderer.process_chat_non_interactive()
+            print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory.')
+            success = True
+
+        except FileNotFoundError as e:
+            print(f"\nError: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            print(f"\nError: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"\nAn unexpected error occurred: {e}")
+            print(traceback.format_exc())
+            sys.exit(1)
+
+    else:
+        # Interactive mode (original behavior)
+        print(f"Welcome to chat-export v{version}")
+        print("----------------------------------------")
+        print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
+        success = False
+        try:
+            selected_zip_file = browse_zip_file()
+            if not selected_zip_file:
+                raise FileNotFoundError("No file selected.")
+            print(f"\nProcessing selected file: {selected_zip_file}...")
+            renderer = WhatsAppChatRenderer(selected_zip_file)
+            renderer.process_chat()
+            print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
+            open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
+            if open_in_browser != 'n':
+                if renderer.has_media:
+                    open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
+                open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
+            success = True
+
+        except FileNotFoundError as e:
+            print(f"\nError: {e}")
+        except ValueError as e:
+            print(f"\nError: {e}")
+        except Exception as e:
+            print(f"\nAn unexpected error occurred: {e}")
+            print(traceback.format_exc())
+
+        if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
+            webbrowser.open(donate_link)
+        if not success:
+            print("Press enter to exit")
+            input()
 
 if __name__ == "__main__":
     main()
