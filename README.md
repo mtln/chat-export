@@ -75,6 +75,10 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
+**CLI Parameters:**
+
+`-o, --output-dir`: Base directory where the chat folder will be created (optional,default: current directory)
+
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
 * You can enter start and end dates to export only a specific date range. If you leave the fields empty, the entire chat will be exported. **If the terminal window doesn't accept your keyboard input, click with your mouse right after the colon in `Enter the number corresponding to your name:`** to set the focus to the terminal window.
@@ -103,6 +107,10 @@ python main.py -n -z "path/to/chat.zip" -p "Your Name"
 Basic conversion:
 ```bash
 python main.py -n -z "WhatsApp Chat with John.zip" -p "Your Name"
+```
+With absolute path to ZIP file (Windows):
+```bash
+python main.py -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
 ```
 
 With date filtering:

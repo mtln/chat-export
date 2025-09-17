@@ -1014,7 +1014,7 @@ def main():
             if not selected_zip_file:
                 raise FileNotFoundError("No file selected.")
             print(f"\nProcessing selected file: {selected_zip_file}...")
-            renderer = WhatsAppChatRenderer(selected_zip_file)
+            renderer = WhatsAppChatRenderer(selected_zip_file, base_output_dir=args.output_dir)
             renderer.process_chat()
             print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
             open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
