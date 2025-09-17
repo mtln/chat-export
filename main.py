@@ -796,7 +796,7 @@ class HTMLRenderer(Renderer):
         # Open both files for writing
         with open(main_html_path, 'w', encoding='utf-8') as main_f, \
              open(media_linked_html_path, 'w', encoding='utf-8') as media_f:
-
+            
             # Write header to both files
             header = self.get_html_header()
             main_f.write(header)
@@ -814,16 +814,14 @@ class HTMLRenderer(Renderer):
             main_f.write(attribution)
             media_f.write(attribution)
 
-            # Time the message processing loop
-            loop_start_time = time.time()
+            
             message_count = 0
 
             for message in chat.messages:
                 self.render_message(message, chat.sender_color_map, chat.own_name, main_f, media_f)
                 message_count += 1
 
-            loop_end_time = time.time()
-            print(f"  Processed {message_count} messages in {loop_end_time - loop_start_time:.2f} seconds")
+            
 
             # Write footer to both files
             footer = self.get_html_footer()
@@ -990,6 +988,7 @@ class ChatExport:
                 if file != chat_file:
                     self.attachments_in_zip.add(file)
                     self.has_media = True
+                    print(f"Found media file: {file}")
             
             # If still not found, raise error
             if chat_file not in zip_ref.namelist():
@@ -1024,7 +1023,9 @@ class ChatExport:
                     print("Invalid choice. Please try again.")
             except ValueError:
                 print("Please enter a valid number.")
-
+        
+        processing_start_time = time.time()
+        
         # Parse messages using the new MessageParser - now returns a Chat object
         chat, filtered_count, total_count = self.parser.parse_messages(
             chat_content,
@@ -1050,7 +1051,8 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
-        print("Done.")
+        processing_end_time = time.time()
+        print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
 
     def process_chat_non_interactive(self):
         """Process chat in non-interactive mode using pre-set parameters."""
@@ -1069,6 +1071,8 @@ class ChatExport:
 
         if self.from_date and self.until_date and self.from_date > self.until_date:
             raise ValueError("'From' date must be before 'until' date")
+
+        processing_start_time = time.time()
 
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
@@ -1150,7 +1154,9 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
-        print("Done.")
+        processing_end_time = time.time()
+        print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
+        
 
 
 def check_tkinter_availability():
@@ -1219,6 +1225,7 @@ def main():
             chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir)
             chat_export.process_chat_non_interactive()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
+            print("Done.")
             success = True
 
         except FileNotFoundError as e:
@@ -1246,6 +1253,7 @@ def main():
             chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir)
             chat_export.process_chat()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
+            print("Done.")
             open_in_browser = input("Would you like to open them in the browser? [Y/n]: ").strip().lower()
             if open_in_browser != 'n':
                 for file in chat_export.renderer.get_generated_files():
