@@ -88,7 +88,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.0"
+version = "0.9.1"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
