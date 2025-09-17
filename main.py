@@ -988,7 +988,6 @@ class ChatExport:
                 if file != chat_file:
                     self.attachments_in_zip.add(file)
                     self.has_media = True
-                    print(f"Found media file: {file}")
             
             # If still not found, raise error
             if chat_file not in zip_ref.namelist():
