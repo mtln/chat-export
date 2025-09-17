@@ -6,6 +6,8 @@ import time
 import traceback
 import zipfile
 from datetime import datetime
+from dataclasses import dataclass, field
+from typing import Optional
 import re
 import shutil
 import webbrowser
@@ -32,6 +34,194 @@ if sys.platform == 'win32':
         pywin32_available = False
 else:
     pywin32_available = False
+
+
+class DateRange:
+    def __init__(self, from_date=None, until_date=None):
+        self.from_date = from_date
+        self.until_date = until_date
+
+        if self.from_date and self.until_date and self.from_date > self.until_date:
+            raise ValueError("'From' date must be before 'until' date")
+
+    def contains(self, msg_date):
+        """Check if a date falls within this range."""
+        if self.from_date and msg_date < self.from_date:
+            return False
+        if self.until_date and msg_date > self.until_date:
+            return False
+        return True
+
+    def is_filtered(self):
+        """Return True if any filtering is applied."""
+        return self.from_date is not None or self.until_date is not None
+
+    def format_range(self, date_format):
+        """Return a formatted string representation of the range."""
+        if not self.is_filtered():
+            return None
+        from_str = self.from_date.strftime(date_format) if self.from_date else 'start'
+        until_str = self.until_date.strftime(date_format) if self.until_date else 'end'
+        return f"Filtered: {from_str} to {until_str}"
+
+    @staticmethod
+    def parse_date_input(date_str, date_formats):
+        """Parse date string in various formats."""
+        if not date_str:
+            return None
+
+        for fmt in date_formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+
+
+@dataclass(frozen=True)
+class Chat:
+    """Container for chat metadata and messages."""
+    # Chat-level metadata
+    name: str
+    is_ios: bool
+    has_media: bool
+    attachments_in_zip: frozenset
+    message_date_format: str
+    newline_marker: str
+
+    # Chat data
+    messages: list = field(default_factory=list)
+    senders: list = field(default_factory=list)
+    date_range: Optional['DateRange'] = None
+    sender_color_map: dict = field(default_factory=dict)
+    own_name: str = ""
+
+
+@dataclass(frozen=True)
+class Message:
+    """Individual message with computed properties using Chat context."""
+    timestamp: str
+    sender: str
+    content: str
+
+    # Computed fields (calculated with Chat context)
+    attachment_name: Optional[str] = None
+    cleaned_content: str = ""
+    parsed_date: Optional[datetime] = None
+    formatted_timestamp: str = ""
+    has_attachment: bool = False
+
+    @classmethod
+    def create_with_context(cls, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
+        """Create a Message with computed properties using Chat context."""
+        # Compute attachment name
+        attachment_name = cls._extract_attachment_name(content, chat)
+        has_attachment = attachment_name is not None
+
+        # Compute cleaned content
+        cleaned_content = cls._clean_message_content(content, chat, attachment_name)
+
+        # Compute parsed date
+        parsed_date = cls._parse_message_date(timestamp, chat.message_date_format)
+
+        # Compute formatted timestamp
+        formatted_timestamp = cls._re_render_with_day_of_week(timestamp, parsed_date)
+
+        return cls(
+            timestamp=timestamp,
+            sender=sender,
+            content=content,
+            attachment_name=attachment_name,
+            cleaned_content=cleaned_content,
+            parsed_date=parsed_date,
+            formatted_timestamp=formatted_timestamp,
+            has_attachment=has_attachment
+        )
+
+    # Attachment patterns as class constants
+    ATTACHMENT_PATTERN_ANDROID = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
+    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^>]+)>'
+
+    @staticmethod
+    def _extract_attachment_name(content: str, chat: 'Chat') -> Optional[str]:
+        """Extract attachment filename from message content using various patterns."""
+        if chat.is_ios and '<' in content:
+            match = re.search(Message.ATTACHMENT_PATTERN_IOS, content)
+            if match:
+                result = match.group(1) if match.groups() else match.group(0)
+                if result in chat.attachments_in_zip:
+                    return result
+        elif not chat.is_ios and '(' in content:
+            match = re.search(Message.ATTACHMENT_PATTERN_ANDROID, content)
+            if match:
+                result = match.group(1) if match.groups() else match.group(0)
+                if result in chat.attachments_in_zip:
+                    return result
+        return None
+
+    @staticmethod
+    def _clean_message_content(content: str, chat: 'Chat', attachment_name: Optional[str]) -> str:
+        """Remove attachment markers from message content."""
+        cleaned_content = content
+
+        # Remove attachment patterns if media present and attachment found
+        if chat.has_media and chat.is_ios and '<' in content and attachment_name is not None:
+            cleaned_content = re.sub(Message.ATTACHMENT_PATTERN_IOS, '', cleaned_content)
+        elif chat.has_media and not chat.is_ios and '(' in content and attachment_name is not None:
+            cleaned_content = re.sub(Message.ATTACHMENT_PATTERN_ANDROID, '', cleaned_content)
+
+        if cleaned_content != content:
+            # Clean up any remaining parentheses and extra whitespace
+            cleaned_content = re.sub(r'\s*\([^)]+\)\s*$', '', cleaned_content)
+
+        # Make '<medien ausgeschlossen>' visible in html
+        cleaned_content = cleaned_content.replace('<', '[').replace('>', ']')
+        cleaned_content = Message._wrap_urls_with_anchor_tags(cleaned_content)
+        cleaned_content = cleaned_content.replace(chat.newline_marker, '<br>')
+
+        # Handle call attempts
+        if cleaned_content == "null":
+            cleaned_content = "[call (attempt)]"
+
+        return cleaned_content.strip()
+
+    @staticmethod
+    def _parse_message_date(timestamp: str, message_date_format: str) -> Optional[datetime]:
+        """Parse the date from a message timestamp."""
+        try:
+            # Remove time part and any AM/PM indicator
+            date_str = re.split(', | ', timestamp.replace('[',''))[0]
+            return datetime.strptime(date_str, message_date_format).date()
+        except (ValueError, AttributeError):
+            return None
+
+    @staticmethod
+    def _re_render_with_day_of_week(timestamp: str, parsed_date: Optional[datetime]) -> str:
+        """Parse the date string and re-render it including the day of week."""
+        try:
+            if parsed_date:
+                day_of_week = parsed_date.strftime('%a')
+                return f"{day_of_week}, {timestamp}"
+            return timestamp
+        except (ValueError, AttributeError):
+            return timestamp
+
+    @staticmethod
+    def _wrap_urls_with_anchor_tags(text: str) -> str:
+        """Wrap URLs in anchor tags."""
+        url_pattern = re.compile(r'(https?://[^\s]+)')
+        return url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
+
+
+class Renderer:
+    """Base renderer class for message rendering."""
+
+    def __init__(self, output_dir=None):
+        self.output_dir = output_dir
+
+    def render(self, chat):
+        """Render a Chat object. To be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement render method")
 
 
 def macos_file_picker():
@@ -168,127 +358,39 @@ Examples:
 
     return args
 
-class WhatsAppChatRenderer:
-    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
-        # Validate zip file existence
-        if not os.path.exists(zip_path):
-            raise FileNotFoundError(f"Could not find the file: {zip_path}\nPlease check if the file path is correct.")
 
-        if not zip_path.lower().endswith('.zip'):
-            raise ValueError(f"The file {zip_path} is not a zip file.\nPlease provide a valid WhatsApp chat export zip file.")
+class MessageParser:
+    """Handles parsing of WhatsApp chat content into Message objects."""
 
-        self.zip_path = zip_path
+    def __init__(self, is_ios=False, has_media=False, attachments_in_zip=None):
+        self.is_ios = is_ios
+        self.has_media = has_media
+        self.attachments_in_zip = attachments_in_zip or set()
 
-        # Pre-set values for non-interactive mode
-        self.from_date = from_date
-        self.until_date = until_date
-        self.participant_name = participant_name
-
-        # Set up output directory: base_output_dir/zip_filename or just zip_filename
-        zip_stem = Path(zip_path).stem
-        if base_output_dir:
-            # Normalize the base output directory path (handle Windows paths, quotes, etc.)
-            normalized_base_dir = parse_path(base_output_dir)
-            self.output_dir = os.path.join(normalized_base_dir, zip_stem)
-        else:
-            self.output_dir = zip_stem
-        self.chat_name = zip_stem
-        self.media_dir = os.path.join(self.output_dir, "media")
-        # Replace the single chat_pattern with a map of patterns
+        # Chat patterns for different platforms
         self.chat_patterns = {
             'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
             'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'), # TODO check if this applies to IOS
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
             'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*)')
         }
-        self.message_date_format = "%d.%m.%y"
-        self.own_name = participant_name
-        self.attachments_to_extract = set()
-        self.attachments_in_zip = set()
-        self.sender_colors = {
-            'own': '#d9fdd3',    # WhatsApp green for own messages
-            'default': '#ffffff', # White for the second sender
-            'whatsapp': '#20c063',
-            # Additional colors for other senders
-            'others': [
-                '#f0e6ff',  # Light purple
-                '#fff3e6',  # Light orange
-                '#e6fff0',  # Light mint
-                '#ffe6e6',  # Light pink
-                '#e6f3ff',  # Light blue
-                '#fff0f0',  # Lighter pink
-                '#e6ffe6',  # Lighter mint
-                '#f2e6ff',  # Lighter purple
-                '#fff5e6',  # Peach
-                '#e6ffff',  # Light cyan
-                '#ffe6f0',  # Rose
-                '#f0ffe6',  # Light lime
-                '#e6e6ff',  # Lavender
-                '#ffe6cc',  # Light apricot
-                '#e6fff9'   # Light turquoise
-            ]
-        }
-        self.sender_color_map = {}
-        self.newline_marker = ' $NEWLINE$ '
-        self.html_filename = 'chat.html'
-        self.html_filename_media_linked = 'chat_media_linked.html'
-                
+
         self.attachment_pattern_android = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-        self.attachment_pattern_ios =  r'<\w{2,20}:\s*([^>]+)>'
-        self.has_media = False
-        self.re_render_dates = False
+        self.attachment_pattern_ios = r'<\w{2,20}:\s*([^>]+)>'
+        self.newline_marker = ' $NEWLINE$ '
+        self.message_date_format = "%d.%m.%y"
+
         self.date_formats = [
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
             "%d.%m.%y",  # German format: DD.MM.YY
             "%m/%d/%y"   # US format: MM/DD/YY
         ]
-        self.is_ios = False
-
-    def get_senders(self, chat_content):
-        senders = set()
-        pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-        for line in chat_content.split('\n'):
-            match = pattern.match(line)
-            if match:
-                sender = match.group(2)
-                senders.add(sender)
-        return sorted(list(senders))
-
-    def validate_participant(self, participant_name, senders):
-        """Validate that the specified participant exists in the chat.
-        If not found, display all participants and raise an error."""
-        if participant_name not in senders:
-            print(f"\nError: Participant '{participant_name}' not found in the chat.")
-            print("\nFound the following participants in the chat:")
-            for i, sender in enumerate(senders, 1):
-                print(f"{i}. {sender}")
-            print("\nPlease use one of the names listed above exactly as shown.")
-            raise ValueError(f"Participant '{participant_name}' not found in chat")
-        return True
-
-    def setup_sender_colors(self, senders):
-        # Remove own name from senders list for color assignment
-        other_senders = [s for s in senders if s != self.own_name]
-        
-        # Assign colors to senders
-        self.sender_color_map[self.own_name] = self.sender_colors['own']
-
-        # assign whatsapp color
-        self.sender_color_map['WhatsApp'] = self.sender_colors['whatsapp']
-
-        # Assign white to the first other sender
-        if other_senders:
-            self.sender_color_map[other_senders[0]] = self.sender_colors['default']
-        
-        # Assign different colors to remaining senders
-        for i, sender in enumerate(other_senders[1:]):
-            color_index = i % len(self.sender_colors['others'])
-            self.sender_color_map[sender] = self.sender_colors['others'][color_index]
 
     def get_date_format(self, chat_content):
+        """Determine the date format used in the chat."""
         chat_content = chat_content.replace('‎','')
         first_line = None
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
@@ -296,9 +398,9 @@ class WhatsAppChatRenderer:
             if pattern.match(line):
                 first_line = line
                 break
-        
+
         if first_line is None:
-            raise ValueError(f"Could not determine the date format of the chat: {chat_content.split('\n')[0]}")
+            raise ValueError(f"Could not determine the date format of the chat: {chat_content.split('\\n')[0]}")
 
         first_line_date = first_line.split(',')[0].replace('[', '')
         # find first non-digit in the date string
@@ -306,7 +408,7 @@ class WhatsAppChatRenderer:
             if not char.isdigit():
                 deliminator = char
                 break
-        
+
         # year might be in position 0 or 2, i.e. 2018-12-22 vs 22.12.18 vs 22.12.2018
         if len(first_line_date.split(deliminator)[0]) == 4:
             return f'%Y{deliminator}%m{deliminator}%d'
@@ -335,54 +437,489 @@ class WhatsAppChatRenderer:
         else:
             return f'%m{deliminator}%d{deliminator}{year_pattern}'
 
-        
+    def _parse_timestamp_date(self, timestamp):
+        """Helper method to parse timestamp for date filtering during message processing."""
+        try:
+            # Remove time part and any AM/PM indicator
+            date_str = re.split(', | ', timestamp.replace('[',''))[0]
+            return datetime.strptime(date_str, self.message_date_format).date()
+        except (ValueError, AttributeError):
+            return None
+
+    def get_senders(self, chat_content):
+        """Extract all unique senders from chat content."""
+        senders = set()
+        pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+        for line in chat_content.split('\n'):
+            match = pattern.match(line)
+            if match:
+                sender = match.group(2)
+                senders.add(sender)
+        return sorted(list(senders))
+
+    def _generate_color_map(self, senders, own_name):
+        """Generate color mapping for senders."""
+        sender_colors = {
+            'own': '#d9fdd3',    # WhatsApp green for own messages
+            'default': '#ffffff', # White for the second sender
+            'whatsapp': '#20c063',
+            # Additional colors for other senders
+            'others': [
+                '#f0e6ff',  # Light purple
+                '#fff3e6',  # Light orange
+                '#e6fff0',  # Light mint
+                '#ffe6e6',  # Light pink
+                '#e6f3ff',  # Light blue
+                '#fff0f0',  # Lighter pink
+                '#e6ffe6',  # Lighter mint
+                '#f2e6ff',  # Lighter purple
+                '#fff5e6',  # Peach
+                '#e6ffff',  # Light cyan
+                '#ffe6f0',  # Rose
+                '#f0ffe6',  # Light lime
+                '#e6e6ff',  # Lavender
+                '#ffe6cc',  # Light apricot
+                '#e6fff9'   # Light turquoise
+            ]
+        }
+
+        color_map = {}
+
+        # Remove own name from senders list for color assignment
+        other_senders = [s for s in senders if s != own_name]
+
+        # Assign colors to senders
+        color_map[own_name] = sender_colors['own']
+
+        # assign whatsapp color
+        color_map['WhatsApp'] = sender_colors['whatsapp']
+
+        # Assign white to the first other sender
+        if other_senders:
+            color_map[other_senders[0]] = sender_colors['default']
+
+        # Assign different colors to remaining senders
+        for i, sender in enumerate(other_senders[1:]):
+            color_index = i % len(sender_colors['others'])
+            color_map[sender] = sender_colors['others'][color_index]
+
+        return color_map
+
+    def parse_messages(self, chat_content, chat_name="", date_range=None, own_name=""):
+        """Parse chat content into a Chat object."""
+        # Set the message date format
+        self.message_date_format = self.get_date_format(chat_content)
+
+        # Create Chat object with metadata
+        chat = Chat(
+            name=chat_name,
+            is_ios=self.is_ios,
+            has_media=self.has_media,
+            attachments_in_zip=frozenset(self.attachments_in_zip),
+            message_date_format=self.message_date_format,
+            newline_marker=self.newline_marker,
+            messages=[],
+            senders=self.get_senders(chat_content),
+            date_range=date_range,
+            sender_color_map={},
+            own_name=own_name
+        )
+
+        # Preprocess the chat content to handle multi-line messages
+        processed_content = []
+        current_line = []
+        filtered_count = 0
+        total_count = 0
+
+        for line in chat_content.split('\n'):
+            # remove the Left-to-right_marks
+            line = line.replace('‎','')
+            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+            match = pattern.match(line)
+            wamatch = wapattern.match(line)
+
+            if match or wamatch:
+                total_count += 1
+                if current_line:
+                    processed_content.append(''.join(current_line))
+
+                # Only add messages within date range
+                if match:
+                    timestamp = match.group(1)
+                    if date_range and not date_range.contains(self._parse_timestamp_date(timestamp)):
+                        current_line = []
+                        continue
+                else:
+                    timestamp = wamatch.group(1)
+                    if date_range and not date_range.contains(self._parse_timestamp_date(timestamp)):
+                        current_line = []
+                        continue
+
+                filtered_count += 1
+                current_line = [line]
+            else:
+                if current_line:
+                    current_line.append(self.newline_marker + line)
+
+        # Don't forget to add the last message
+        if current_line:
+            processed_content.append(''.join(current_line))
+
+        # Parse each processed line into Message objects
+        messages = []
+        for line in processed_content:
+            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
+            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
+            match = pattern.match(line)
+            wamatch = wapattern.match(line)
+
+            if match:
+                timestamp, sender, content = match.groups()
+                messages.append(Message.create_with_context(
+                    timestamp=timestamp,
+                    sender=sender,
+                    content=content,
+                    chat=chat
+                ))
+            elif wamatch:
+                timestamp, content = wamatch.groups()
+                messages.append(Message.create_with_context(
+                    timestamp=timestamp,
+                    sender="WhatsApp",
+                    content=content,
+                    chat=chat
+                ))
+
+        # Update chat with messages and color map
+        chat.messages.extend(messages)
+        chat.sender_color_map.update(self._generate_color_map(chat.senders, own_name))
+
+        return chat, filtered_count, total_count
+
+
+class HTMLRenderer(Renderer):
+    """Renders messages to HTML format."""
+
+    def __init__(self, output_dir, has_media=False):
+        super().__init__(output_dir)
+        self.has_media = has_media
+        self.html_filename = 'chat.html'
+        self.html_filename_media_linked = 'chat_media_linked.html'
+        self.attachments_to_extract = set()
+
+    def get_css_styles(self):
+        """Return the CSS styles for the HTML output."""
+        return """body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #e5ddd5;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 7.5px;
+            max-width: 65%;
+            position: relative;
+            clear: both;
+        }
+        .message.sent {
+            float: right;
+            margin-left: 35%;
+        }
+        .message.received {
+            float: left;
+            margin-right: 35%;
+        }
+        .message.whatsapp {
+            max-width: 100%
+        }
+        .media {
+            max-width: 100%;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .timestamp {
+            color: #667781;
+            font-size: 0.75em;
+            float: right;
+            margin-left: 10px;
+            margin-top: 5px;
+        }
+        .sender {
+            color: #1f7aad;
+            font-size: 0.85em;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .content {
+            word-wrap: break-word;
+        }
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+        a {
+            color: #039be5;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        @media print {
+            body {
+                background-color: #ffffff;
+            }
+        }"""
+
+    def get_html_header(self):
+        """Generate the HTML header."""
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{self.chat.name}</title>
+    <style>
+        {self.get_css_styles()}
+    </style>
+</head>
+<body>
+<div class="chat-container">
+<h1>{self.chat.name}</h1>"""
+
+    def get_html_footer(self):
+        """Generate the HTML footer."""
+        return """
+</div>
+</body>
+</html>"""
+
+    def render_media_element(self, attachment_name, is_media_linked=False):
+        """Render a media element based on its file extension."""
+        media_path = f"./media/{attachment_name}"
+
+        if is_media_linked:
+            # Always show as link in media-linked version
+            return f'<a href="{media_path}">📎 {attachment_name}</a><br>'
+
+        # Render media inline in main version
+        ext = attachment_name.lower()
+        if ext.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+            return f'<img class="media" src="{media_path}"><br>'
+        elif ext.endswith('.mp4'):
+            return f'<video class="media" controls><source src="{media_path}" type="video/mp4"></video><br>'
+        elif ext.endswith('.opus'):
+            return f'<audio class="media" controls><source src="{media_path}" type="audio/ogg"></audio><br>'
+        elif ext.endswith('.wav'):
+            return f'<audio class="media" controls><source src="{media_path}" type="audio/wav"></source></audio><br>'
+        elif ext.endswith('.mp3'):
+            return f'<audio class="media" controls><source src="{media_path}" type="audio/mpeg"></audio><br>'
+        elif ext.endswith('.m4a'):
+            return f'<audio class="media" controls><source src="{media_path}" type="audio/mp4"></audio><br>'
+        else:
+            return f'<a href="{media_path}">📎 {attachment_name}</a><br>'
+
+    def render_message(self, message, sender_color_map, own_name, main_f, media_f):
+        """Render a single message to both file handles."""
+        # Determine message alignment and background color
+        is_own_message = message.sender == own_name
+        is_wa_message = message.sender == "WhatsApp"
+        message_class = "sent" if is_own_message else "received"
+        if is_wa_message:
+            message_class = 'whatsapp'
+        bg_color = sender_color_map.get(message.sender, '#ffffff')
+
+        # Common message structure
+        message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
+        sender_div = f'<div class="sender">{message.sender}</div>'
+        content_start = '<div class="content">'
+        content_end = '</div>'
+        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp}</span>'
+        message_end = '</div>'
+
+        # Write message start to both files
+        main_f.write(message_start)
+        media_f.write(message_start)
+
+        # Write sender to both files
+        main_f.write(sender_div)
+        media_f.write(sender_div)
+
+        # Write content start to both files
+        main_f.write(content_start)
+        media_f.write(content_start)
+
+        # Check if the message contains media
+        if message.has_attachment:
+            attachment_name = message.attachment_name
+            self.attachments_to_extract.add(attachment_name)
+
+            # Render media differently for each file
+            main_f.write(self.render_media_element(attachment_name, is_media_linked=False))
+            media_f.write(self.render_media_element(attachment_name, is_media_linked=True))
+
+        # Add the message content to both files
+        cleaned_content = message.cleaned_content
+        if cleaned_content:
+            main_f.write(f'{cleaned_content}')
+            media_f.write(f'{cleaned_content}')
+
+        # Write content end, timestamp, and message end to both files
+        main_f.write(content_end)
+        media_f.write(content_end)
+        main_f.write(timestamp_span)
+        media_f.write(timestamp_span)
+        main_f.write(message_end)
+        media_f.write(message_end)
+
+    def render(self, chat):
+        """Render chat to HTML files."""
+        print("Writing HTML files...")
+
+        self.chat = chat
+        # Prepare file paths
+        main_html_path = os.path.join(self.output_dir, self.html_filename)
+        media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
+
+        # Open both files for writing
+        with open(main_html_path, 'w', encoding='utf-8') as main_f, \
+             open(media_linked_html_path, 'w', encoding='utf-8') as media_f:
+
+            # Write header to both files
+            header = self.get_html_header()
+            main_f.write(header)
+            media_f.write(header)
+
+            # Write date range and attribution to both files
+            if chat.date_range and chat.date_range.is_filtered():
+                date_range_str = chat.date_range.format_range(chat.message_date_format)
+                if date_range_str:
+                    date_html = f'<p style="color: #667781;">{date_range_str}</p>'
+                    main_f.write(date_html)
+                    media_f.write(date_html)
+
+            attribution = '<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
+            main_f.write(attribution)
+            media_f.write(attribution)
+
+            # Time the message processing loop
+            loop_start_time = time.time()
+            message_count = 0
+
+            for message in chat.messages:
+                self.render_message(message, chat.sender_color_map, chat.own_name, main_f, media_f)
+                message_count += 1
+
+            loop_end_time = time.time()
+            print(f"  Processed {message_count} messages in {loop_end_time - loop_start_time:.2f} seconds")
+
+            # Write footer to both files
+            footer = self.get_html_footer()
+            main_f.write(footer)
+            media_f.write(footer)
+
+        return self.attachments_to_extract
+
+
+class WhatsAppChatRenderer:
+    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
+        # Validate zip file existence
+        if not os.path.exists(zip_path):
+            raise FileNotFoundError(f"Could not find the file: {zip_path}\nPlease check if the file path is correct.")
+
+        if not zip_path.lower().endswith('.zip'):
+            raise ValueError(f"The file {zip_path} is not a zip file.\nPlease provide a valid WhatsApp chat export zip file.")
+
+        self.zip_path = zip_path
+
+        # Pre-set values for non-interactive mode
+        self.from_date = from_date
+        self.until_date = until_date
+        self.participant_name = participant_name
+
+        # Set up output directory: base_output_dir/zip_filename or just zip_filename
+        zip_stem = Path(zip_path).stem
+        if base_output_dir:
+            # Normalize the base output directory path (handle Windows paths, quotes, etc.)
+            normalized_base_dir = parse_path(base_output_dir)
+            self.output_dir = os.path.join(normalized_base_dir, zip_stem)
+        else:
+            self.output_dir = zip_stem
+        self.media_dir = os.path.join(self.output_dir, "media")
+
+        self.own_name = participant_name
+        self.attachments_in_zip = set()
+        self.sender_colors = {
+            'own': '#d9fdd3',    # WhatsApp green for own messages
+            'default': '#ffffff', # White for the second sender
+            'whatsapp': '#20c063',
+            # Additional colors for other senders
+            'others': [
+                '#f0e6ff',  # Light purple
+                '#fff3e6',  # Light orange
+                '#e6fff0',  # Light mint
+                '#ffe6e6',  # Light pink
+                '#e6f3ff',  # Light blue
+                '#fff0f0',  # Lighter pink
+                '#e6ffe6',  # Lighter mint
+                '#f2e6ff',  # Lighter purple
+                '#fff5e6',  # Peach
+                '#e6ffff',  # Light cyan
+                '#ffe6f0',  # Rose
+                '#f0ffe6',  # Light lime
+                '#e6e6ff',  # Lavender
+                '#ffe6cc',  # Light apricot
+                '#e6fff9'   # Light turquoise
+            ]
+        }
+        self.has_media = False
+        self.is_ios = False
+
+        self.date_formats = [
+            "%d.%m.%Y",  # German format: DD.MM.YYYY
+            "%m/%d/%Y",  # US format: MM/DD/YYYY
+            "%d.%m.%y",  # German format: DD.MM.YY
+            "%m/%d/%y"   # US format: MM/DD/YY
+        ]
+
+        # Initialize modular components (will be set up later after platform detection)
+        self.parser = None
+        self.renderer = None
+
+    def validate_participant(self, participant_name, senders):
+        """Validate that the specified participant exists in the chat.
+        If not found, display all participants and raise an error."""
+        if participant_name not in senders:
+            print(f"\nError: Participant '{participant_name}' not found in the chat.")
+            print("\nFound the following participants in the chat:")
+            for i, sender in enumerate(senders, 1):
+                print(f"{i}. {sender}")
+            print("\nPlease use one of the names listed above exactly as shown.")
+            raise ValueError(f"Participant '{participant_name}' not found in chat")
+        return True
 
     def parse_date_input(self, date_str):
         """Parse date string in either US or German format."""
-        if not date_str:
-            return None
-            
-        for fmt in self.date_formats:
-            try:
-                return datetime.strptime(date_str, fmt).date()
-            except ValueError:
-                continue
-        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+        return DateRange.parse_date_input(date_str, self.date_formats)
 
-    def parse_message_date(self, date_str):
-        """Parse the date from a message timestamp."""
-        # Remove time part and any AM/PM indicator
-        date_str = re.split(', | ',  date_str.replace('[',''))[0]
-        return datetime.strptime(date_str, self.message_date_format).date()
+    def setup_modular_components(self):
+        """Initialize the MessageParser and HTMLRenderer components."""
+        # Setup parser
+        self.parser = MessageParser(
+            is_ios=self.is_ios,
+            has_media=self.has_media,
+            attachments_in_zip=self.attachments_in_zip
+        )
 
-
-    def re_render_with_day_of_week(self, date_str: str) -> str:
-        """Parse the date string using self.message_date_format and then re-render it including the day of week.
-        If something fails, returns the input date_str.
-        e.g. 4/18/25, 3:09:10 PM becomes Fri, 4/18/25, 3:09:10 PM.
-        31.08.2025 becomes Sun, 31.08.2025
-        """
-        try:
-            # Parse the date using the current message_date_format
-            parsed_date = self.parse_message_date(date_str)
-            day_of_week = parsed_date.strftime('%a')
-            # Re-render with day of week prefix
-            return f"{day_of_week}, {date_str}"
-        except (ValueError, AttributeError):
-            # If parsing fails, return the original string
-            return date_str
-
-    
-
-
-    def is_message_in_date_range(self, timestamp):
-        """Check if message timestamp falls within the specified date range."""
-        msg_date = self.parse_message_date(timestamp)
-        if self.from_date and msg_date < self.from_date:
-            return False
-        if self.until_date and msg_date > self.until_date:
-            return False
-        return True
+        # Setup renderer
+        self.renderer = HTMLRenderer(
+            output_dir=self.output_dir,
+            has_media=self.has_media
+        )
 
     @staticmethod
     def most_similar(target: str, candidates: list[str]) -> str:
@@ -456,57 +993,18 @@ class WhatsAppChatRenderer:
         else:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
             shutil.rmtree(self.media_dir)
-        # Preprocess the chat content to handle multi-line messages
-        processed_content = []
-        current_line = []
-        filtered_count = 0
-        total_count = 0
+        # Setup modular components now that we know the platform and media status
+        self.setup_modular_components()
 
-        self.message_date_format = self.get_date_format(chat_content)
-        
-        for line in chat_content.split('\n'):
-            # remove the Left-to-right_marks
-            line = line.replace('‎','')
-            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
-            match = pattern.match(line)
-            wamatch = wapattern.match(line)
-            if match or wamatch:
-                total_count += 1
-                if current_line:
-                    processed_content.append(''.join(current_line))
-                # Only add messages within date range
-                if match:
-                    if not self.is_message_in_date_range(match.group(1)):
-                        current_line = []
-                        continue
-                else:
-                    if not self.is_message_in_date_range(wamatch.group(1)):
-                        current_line = []
-                        continue
-                filtered_count += 1
-                current_line = [line]
-            else:
-                if current_line:
-                    current_line.append(self.newline_marker + line)
+        # Create date range for filtering
+        date_range = DateRange(self.from_date, self.until_date) if (self.from_date or self.until_date) else None
 
-        # Don't forget to add the last message
-        if current_line:
-            processed_content.append(''.join(current_line))
-
-        # Join all processed lines with newlines
-        chat_content = '\n'.join(processed_content)
-        if self.from_date or self.until_date:
-            print(f"\n{filtered_count} of {total_count} messages match date range filter.")
-            if filtered_count == 0:
-                raise ValueError("No messages found in the specified date range. Aborting.")
-        print(f"Exporting {len(processed_content)} messages.")
-        # Get list of senders and let user choose their name
-        senders = self.get_senders(chat_content)
+        # Get list of senders first to let user choose their name
+        senders = self.parser.get_senders(chat_content)
         print("\nFound the following participants in the chat:")
         for i, sender in enumerate(senders, 1):
             print(f"{i}. {sender}")
-        
+
         while True:
             try:
                 choice = int(input("\nEnter the number corresponding to your name: ")) - 1
@@ -518,19 +1016,30 @@ class WhatsAppChatRenderer:
             except ValueError:
                 print("Please enter a valid number.")
 
-        # Setup color mapping for senders
-        self.setup_sender_colors(senders)
-      
-       
-        self.generate_both_html_files(chat_content)
-        
+        # Parse messages using the new MessageParser - now returns a Chat object
+        chat, filtered_count, total_count = self.parser.parse_messages(
+            chat_content,
+            chat_name=os.path.basename(self.zip_path),
+            date_range=date_range,
+            own_name=self.own_name
+        )
+
+        if date_range and date_range.is_filtered():
+            print(f"\n{filtered_count} of {total_count} messages match date range filter.")
+            if filtered_count == 0:
+                raise ValueError("No messages found in the specified date range. Aborting.")
+        print(f"Exporting {len(chat.messages)} messages.")
+
+        # Render messages using the new HTMLRenderer
+        attachments_to_extract = self.renderer.render(chat)
+
         if self.has_media:
             print("Extracting attachments/media...")
             # extract attachments of rendered messages
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
                 # Extract media files
                 for file in zip_ref.namelist():
-                    if file in self.attachments_to_extract:
+                    if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
         print("Done.")
 
@@ -596,60 +1105,33 @@ class WhatsAppChatRenderer:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
             shutil.rmtree(self.media_dir)
 
-        # Preprocess the chat content to handle multi-line messages
-        processed_content = []
-        current_line = []
-        filtered_count = 0
-        total_count = 0
+        # Setup modular components now that we know the platform and media status
+        self.setup_modular_components()
 
-        self.message_date_format = self.get_date_format(chat_content)
+        # Create date range for filtering
+        date_range = DateRange(self.from_date, self.until_date) if (self.from_date or self.until_date) else None
         print(f"from date: {self.from_date}, until date: {self.until_date}")
-        for line in chat_content.split('\n'):
-            # remove the Left-to-right_marks
-            line = line.replace('‎', '')
-            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
-            match = pattern.match(line)
-            wamatch = wapattern.match(line)
-            if match or wamatch:
-                total_count += 1
-                if current_line:
-                    processed_content.append(''.join(current_line))
-                # Only add messages within date range
-                if match:
-                    if not self.is_message_in_date_range(match.group(1)):
-                        current_line = []
-                        continue
-                else:
-                    if not self.is_message_in_date_range(wamatch.group(1)):
-                        current_line = []
-                        continue
-                filtered_count += 1
-                current_line = [line]
-            else:
-                if current_line:
-                    current_line.append(self.newline_marker + line)
 
-        # Don't forget to add the last message
-        if current_line:
-            processed_content.append(''.join(current_line))
+        # Get list of senders and validate the provided participant
+        senders = self.parser.get_senders(chat_content)
+        self.validate_participant(self.own_name, senders)
 
-        # Join all processed lines with newlines
-        chat_content = '\n'.join(processed_content)
-        if self.from_date or self.until_date:
+        # Parse messages using the new MessageParser - now returns a Chat object
+        chat, filtered_count, total_count = self.parser.parse_messages(
+            chat_content,
+            chat_name=os.path.basename(self.zip_path),
+            date_range=date_range,
+            own_name=self.own_name
+        )
+
+        if date_range and date_range.is_filtered():
             print(f"\n{filtered_count} of {total_count} messages match date range filter.")
             if filtered_count == 0:
                 raise ValueError("No messages found in the specified date range. Aborting.")
-        print(f"Exporting {len(processed_content)} messages.")
+        print(f"Exporting {len(chat.messages)} messages.")
 
-        # Get list of senders and validate the provided participant
-        senders = self.get_senders(chat_content)
-        self.validate_participant(self.own_name, senders)
-
-        # Setup color mapping for senders
-        self.setup_sender_colors(senders)
-
-        self.generate_both_html_files(chat_content)
+        # Render messages using the new HTMLRenderer
+        attachments_to_extract = self.renderer.render(chat)
 
         if self.has_media:
             print("Extracting attachments/media...")
@@ -657,273 +1139,11 @@ class WhatsAppChatRenderer:
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
                 # Extract media files
                 for file in zip_ref.namelist():
-                    if file in self.attachments_to_extract:
+                    if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
         print("Done.")
 
 
-    @staticmethod
-    def wrap_urls_with_anchor_tags(text):
-        # Regular expression to match URLs
-        url_pattern = re.compile(r'(https?://[^\s]+)')
-        
-        # Replace each URL with an <a> tag
-        result = url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
-        return result
-
-    def extract_attachment_name(self, content):
-        """Extract attachment filename from message content using various patterns."""
-        if self.is_ios and '<' in content:
-            match = re.search(self.attachment_pattern_ios, content)
-            if match:
-                result = match.group(1) if match.groups() else match.group(0)
-                if result in self.attachments_in_zip:
-                    return result
-        elif not self.is_ios and '(' in content:
-            match = re.search(self.attachment_pattern_android, content)
-            if match:
-                result = match.group(1) if match.groups() else match.group(0)
-                if result in self.attachments_in_zip:
-                    return result
-        return None
-
-    def clean_message_content(self, content):
-        """Remove attachment markers from message content."""
-        cleaned_content = content
-        # if no < or ( in content, skip the attachment pattern matching
-        if self.has_media and self.is_ios and '<' in content and self.extract_attachment_name(content) is not None:
-            cleaned_content = re.sub(self.attachment_pattern_ios, '', cleaned_content)
-        elif self.has_media and not self.is_ios and '(' in content and self.extract_attachment_name(content) is not None:
-            cleaned_content = re.sub(self.attachment_pattern_android, '', cleaned_content)
-        if cleaned_content != content:
-            # Clean up any remaining parentheses and extra whitespace
-            cleaned_content = re.sub(r'\s*\([^)]+\)\s*$', '', cleaned_content)
-        # make '<medien ausgeschlossen>' visible in html
-        cleaned_content = cleaned_content.replace('<', '[').replace('>', ']')
-        cleaned_content = self.wrap_urls_with_anchor_tags(cleaned_content)
-        cleaned_content = cleaned_content.replace(self.newline_marker, '<br>')
-        # we don't have any details on calls. Whether if they were video or audio. 
-        # Nor if they where attempts or established
-        # Nor if they were incoming or outgoing.
-        # Just a string "null"
-        if cleaned_content == "null":
-            cleaned_content = "[call (attempt)]"
-        return cleaned_content.strip()
-
-    
-
-    def generate_both_html_files(self, chat_content):
-        """Generate both HTML files in a single pass for better efficiency."""
-        print("Writing HTML files...")
-        
-        # Prepare file paths
-        main_html_path = os.path.join(self.output_dir, self.html_filename)
-        media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
-        
-        # Open both files for writing
-        with open(main_html_path, 'w', encoding='utf-8') as main_f, \
-             open(media_linked_html_path, 'w', encoding='utf-8') as media_f:
-            
-            # Write header to both files
-            header = """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>PLACEHOLDER_CHAT_NAME</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #e5ddd5;
-        }
-        .message {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 7.5px;
-            max-width: 65%;
-            position: relative;
-            clear: both;
-        }
-        .message.sent {
-            float: right;
-            margin-left: 35%;
-        }
-        .message.received {
-            float: left;
-            margin-right: 35%;
-        }
-        .message.whatsapp {
-            max-width: 100%
-        }
-        .media {
-            max-width: 100%;
-            border-radius: 5px;
-            margin: 5px 0;
-        }
-        .timestamp {
-            color: #667781;
-            font-size: 0.75em;
-            float: right;
-            margin-left: 10px;
-            margin-top: 5px;
-        }
-        .sender {
-            color: #1f7aad;
-            font-size: 0.85em;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
-        }
-        .content {
-            word-wrap: break-word;
-        }
-        .clearfix::after {
-            content: "";
-            clear: both;
-            display: table;
-        }
-        a {
-            color: #039be5;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        @media print {
-            body {
-                background-color: #ffffff;
-            }
-        }
-    </style>
-</head>
-<body>
-<div class="chat-container">
-<h1>PLACEHOLDER_CHAT_NAME</h1>""".replace('PLACEHOLDER_CHAT_NAME', self.chat_name)
-            
-            main_f.write(header)
-            media_f.write(header)
-            
-            # Write date range and attribution to both files
-            if self.from_date or self.until_date:
-                date_range = f"Filtered: {self.from_date.strftime(self.message_date_format) if self.from_date else 'start'} to {self.until_date.strftime(self.message_date_format) if self.until_date else 'end'}"
-                date_html = f'<p style="color: #667781;">{date_range}</p>'
-                main_f.write(date_html)
-                media_f.write(date_html)
-            
-            attribution = '<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
-            main_f.write(attribution)
-            media_f.write(attribution)
-            
-            pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
-
-            # pattern for whatsapp system messages
-            wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
-
-            # Time the message processing loop
-            loop_start_time = time.time()
-            message_count = 0
-            
-            for line in chat_content.split('\n'):
-                match = pattern.match(line)
-                wamatch = wapattern.match(line)
-
-                # execute if something was found
-                if match or wamatch:
-
-                    if match:
-                        # normal message
-                        timestamp, sender, content = match.groups()
-                    elif wamatch:
-                        # system message has fixed sender
-                        timestamp, content = wamatch.groups()
-                        sender = "WhatsApp"
-
-                    # Determine message alignment and background color
-                    is_own_message = sender == self.own_name
-                    is_wa_message = sender == "WhatsApp"
-                    message_class = "sent" if is_own_message else "received"
-                    if is_wa_message:
-                        message_class = 'whatsapp'
-                    bg_color = self.sender_color_map.get(sender, '#ffffff')
-
-                    # Common message structure
-                    message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
-                    sender_div = f'<div class="sender">{sender}</div>'
-                    content_start = '<div class="content">'
-                    content_end = '</div>'
-                    timestamp_span = f'<span class="timestamp">{self.re_render_with_day_of_week(timestamp)}</span>'
-                    message_end = '</div>'
-                    
-                    # Write message start to both files
-                    main_f.write(message_start)
-                    media_f.write(message_start)
-                    
-                    # Write sender to both files
-                    main_f.write(sender_div)
-                    media_f.write(sender_div)
-                    
-                    # Write content start to both files
-                    main_f.write(content_start)
-                    media_f.write(content_start)
-                    
-                    # Check if the message contains media
-                    attachment_name = self.extract_attachment_name(content) if self.has_media else None
-                    if attachment_name:
-                        self.attachments_to_extract.add(attachment_name)
-                        media_path = f"./media/{attachment_name}"
-                        
-                        # Main file: render media
-                        if attachment_name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
-                            main_f.write(f'<img class="media" src="{media_path}"><br>')
-                        elif attachment_name.lower().endswith('.mp4'):
-                            main_f.write(f'<video class="media" controls><source src="{media_path}" type="video/mp4"></video><br>')
-                        elif attachment_name.lower().endswith('.opus'):
-                            main_f.write(f'<audio class="media" controls><source src="{media_path}" type="audio/ogg"></audio><br>')
-                        elif attachment_name.lower().endswith('.wav'):
-                            main_f.write(f'<audio class="media" controls><source src="{media_path}" type="audio/wav"></audio><br>')
-                        elif attachment_name.lower().endswith('.mp3'):
-                            main_f.write(f'<audio class="media" controls><source src="{media_path}" type="audio/mpeg"></audio><br>')
-                        elif attachment_name.lower().endswith('.m4a'):
-                            main_f.write(f'<audio class="media" controls><source src="{media_path}" type="audio/mp4"></audio><br>')
-                        else:
-                            main_f.write(f'<a href="{media_path}">📎 {attachment_name}</a><br>')
-                        
-                        # Media-linked file: always show as link
-                        media_f.write(f'<a href="{media_path}">📎 {attachment_name}</a><br>')
-
-                    # Add the message content to both files
-                    cleaned_content = self.clean_message_content(content)
-                    if cleaned_content:
-                        main_f.write(f'{cleaned_content}')
-                        media_f.write(f'{cleaned_content}')
-                    
-                    # Write content end, timestamp, and message end to both files
-                    main_f.write(content_end)
-                    media_f.write(content_end)
-                    main_f.write(timestamp_span)
-                    media_f.write(timestamp_span)
-                    main_f.write(message_end)
-                    media_f.write(message_end)
-                    
-                    message_count += 1
-
-            loop_end_time = time.time()
-            print(f"  Processed {message_count} messages in {loop_end_time - loop_start_time:.2f} seconds")
-
-            # Write footer to both files
-            footer = """
-</div>
-</body>
-</html>"""
-            main_f.write(footer)
-            media_f.write(footer)
-        
-        
-
-
-    
 def check_tkinter_availability():
     """Check if tkinter is available and working on the system."""
     try:
@@ -948,7 +1168,7 @@ def browse_zip_file():
         # Fallback to command line input
         file_path = input("Please enter the path to your WhatsApp chat export ZIP file: ").strip()
         return file_path if file_path else None
-        
+
     import tkinter as tk
     from tkinter import filedialog
     # Initialize Tkinter root window and hide it
@@ -989,17 +1209,17 @@ def main():
 
             renderer = WhatsAppChatRenderer(args.zip_file, from_date, until_date, args.participant, args.output_dir)
             renderer.process_chat_non_interactive()
-            print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory.')
+            print(f'{renderer.renderer.html_filename} and {renderer.renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory.')
             success = True
 
         except FileNotFoundError as e:
-            print(f"\nError: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
         except ValueError as e:
-            print(f"\nError: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
         except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}")
+            print(f"An unexpected error occurred: {e}")
             print(traceback.format_exc())
             sys.exit(1)
 
@@ -1013,26 +1233,26 @@ def main():
             selected_zip_file = browse_zip_file()
             if not selected_zip_file:
                 raise FileNotFoundError("No file selected.")
-            print(f"\nProcessing selected file: {selected_zip_file}...")
+            print(f"Processing selected file: {selected_zip_file}...")
             renderer = WhatsAppChatRenderer(selected_zip_file, base_output_dir=args.output_dir)
             renderer.process_chat()
-            print(f'\n{renderer.html_filename} and {renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\n("{os.path.abspath(renderer.output_dir)}").')
-            open_in_browser = input("\nWould you like to open them in the browser? [Y/n]: ").strip().lower()
+            print(f'\\n{renderer.renderer.html_filename} and {renderer.renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\\n("{os.path.abspath(renderer.output_dir)}").')
+            open_in_browser = input("Would you like to open them in the browser? [Y/n]: ").strip().lower()
             if open_in_browser != 'n':
                 if renderer.has_media:
-                    open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename_media_linked)
-                open_html_file_in_browser(Path(renderer.output_dir)/renderer.html_filename)
+                    open_html_file_in_browser(Path(renderer.output_dir)/renderer.renderer.html_filename_media_linked)
+                open_html_file_in_browser(Path(renderer.output_dir)/renderer.renderer.html_filename)
             success = True
 
         except FileNotFoundError as e:
-            print(f"\nError: {e}")
+            print(f"Error: {e}")
         except ValueError as e:
-            print(f"\nError: {e}")
+            print(f"Error: {e}")
         except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}")
+            print(f"An unexpected error occurred: {e}")
             print(traceback.format_exc())
 
-        if success and input("\nDo you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
+        if success and input("Do you like the tool and want to buy me a coffee? [y/N]: ").strip().lower() == 'y':
             webbrowser.open(donate_link)
         if not success:
             print("Press enter to exit")
