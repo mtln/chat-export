@@ -223,6 +223,10 @@ class Renderer:
         """Render a Chat object. To be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement render method")
 
+    def get_generated_files(self) -> list[Path]:
+        """Get the generated files."""
+        raise NotImplementedError("Subclasses must implement get_generated_files method")
+
 
 def macos_file_picker():
     """Present a native macOS file dialog to select a file.
@@ -608,6 +612,10 @@ class HTMLRenderer(Renderer):
         self.html_filename_media_linked = 'chat_media_linked.html'
         self.attachments_to_extract = set()
 
+    def get_generated_files(self) -> list[Path]:
+        """Get the generated files."""
+        return [Path(self.output_dir, self.html_filename), Path(self.output_dir, self.html_filename_media_linked)]
+
     def get_css_styles(self):
         """Return the CSS styles for the HTML output."""
         return """body {
@@ -825,7 +833,7 @@ class HTMLRenderer(Renderer):
         return self.attachments_to_extract
 
 
-class WhatsAppChatRenderer:
+class ChatExport:
     def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
         # Validate zip file existence
         if not os.path.exists(zip_path):
@@ -914,6 +922,7 @@ class WhatsAppChatRenderer:
             has_media=self.has_media,
             attachments_in_zip=self.attachments_in_zip
         )
+        
 
         # Setup renderer
         self.renderer = HTMLRenderer(
@@ -1207,9 +1216,9 @@ def main():
             from_date = args.from_date if args.from_date else None
             until_date = args.until_date if args.until_date else None
 
-            renderer = WhatsAppChatRenderer(args.zip_file, from_date, until_date, args.participant, args.output_dir)
-            renderer.process_chat_non_interactive()
-            print(f'{renderer.renderer.html_filename} and {renderer.renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory.')
+            chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir)
+            chat_export.process_chat_non_interactive()
+            print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             success = True
 
         except FileNotFoundError as e:
@@ -1234,14 +1243,13 @@ def main():
             if not selected_zip_file:
                 raise FileNotFoundError("No file selected.")
             print(f"Processing selected file: {selected_zip_file}...")
-            renderer = WhatsAppChatRenderer(selected_zip_file, base_output_dir=args.output_dir)
-            renderer.process_chat()
-            print(f'\\n{renderer.renderer.html_filename} and {renderer.renderer.html_filename_media_linked} have been created in the "{renderer.output_dir}" directory\\n("{os.path.abspath(renderer.output_dir)}").')
+            chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir)
+            chat_export.process_chat()
+            print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             open_in_browser = input("Would you like to open them in the browser? [Y/n]: ").strip().lower()
             if open_in_browser != 'n':
-                if renderer.has_media:
-                    open_html_file_in_browser(Path(renderer.output_dir)/renderer.renderer.html_filename_media_linked)
-                open_html_file_in_browser(Path(renderer.output_dir)/renderer.renderer.html_filename)
+                for file in chat_export.renderer.get_generated_files():
+                    open_html_file_in_browser(file.absolute())
             success = True
 
         except FileNotFoundError as e:
