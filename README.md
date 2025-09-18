@@ -90,7 +90,7 @@ The tool supports both interactive and non-interactive modes:
 For automation, scripting, or when you know all parameters in advance, you can use the non-interactive CLI mode. This mode processes the chat without any prompts and is perfect for batch processing or integration into other tools.
 
 **Basic Usage:**
-```bash
+```
 python main.py -n -z "path/to/chat.zip" -p "Your Name"
 ```
 
@@ -107,26 +107,26 @@ python main.py -n -z "path/to/chat.zip" -p "Your Name"
 **Examples:**
 
 Basic conversion:
-```bash
+```
 python main.py -n -z "WhatsApp Chat with John.zip" -p "Your Name"
 ```
 With absolute path to ZIP file (Windows):
-```bash
+```
 python main.py -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
 ```
 
 With date filtering:
-```bash
+```
 python main.py -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
 ```
 
 Custom output directory (creates chat folder in /tmp instead of current directory):
-```bash
+```
 python main.py -n -z "chat.zip" -p "Your Name" -o "/tmp"
 ```
 
 Windows paths (important: no trailing backslash):
-```bash
+```
 python main.py -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ```
 
