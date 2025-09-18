@@ -179,8 +179,12 @@ class Message:
         cleaned_content = Message._wrap_urls_with_anchor_tags(cleaned_content)
         cleaned_content = cleaned_content.replace(chat.newline_marker, '<br>')
 
-        # Handle call attempts
-        if cleaned_content == "null":
+        # Handle call attempts (old exports contained "null", newer contain empty messages "")
+        # we don't have any details on calls. Whether if they were video or audio. 
+        # Nor if they where attempts or established
+        # Nor if they were incoming or outgoing.
+        # Just a string "null"
+        if cleaned_content == "null" or (cleaned_content == "" and attachment_name is None):
             cleaned_content = "[call (attempt)]"
 
         return cleaned_content.strip()
@@ -1255,7 +1259,7 @@ def main():
             print("Done.")
             open_in_browser = input("Would you like to open them in the browser? [Y/n]: ").strip().lower()
             if open_in_browser != 'n':
-                for file in chat_export.renderer.get_generated_files():
+                for file in reversed(chat_export.renderer.get_generated_files()):
                     open_html_file_in_browser(file.absolute())
             success = True
 
