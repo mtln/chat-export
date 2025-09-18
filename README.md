@@ -18,6 +18,7 @@ The HTML export is:
 * **Searchable:** You can search for specific messages in the browser.
 * **Shareable:** You can share the chat with others, but make sure to get consent from all other participants first.
 * **Durable:** You can keep the chat as a record for years to come. Apps come and go. Plain HTML is here to stay.
+* **Automatable:** With the non-interactive CLI mode, you can script batch processing of multiple chat exports or integrate the tool into other workflows.
 
 Maybe you want to:
 
@@ -27,6 +28,9 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 * archive a chat before freeing up space on your phone by deleting photos, videos, and other documents that were part of the chat.
 * ask another chat participant who still has a complete version of the chat (including all pictures) on his or her phone to send you a chat export, so you can convert and archive it.
+* batch process multiple chat exports automatically using the CLI mode.
+* integrate chat conversion into backup or archival scripts.
+* process chat exports on headless servers or in automated workflows.
 
 Furthermore, the tool is [open-source](https://github.com/mtln/chat-export) and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
 And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
@@ -68,11 +72,66 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 **Usage**
 
-* After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
-* You can enter start and end dates to export only a specific date range. If you leave the fields empty, the entire chat will be exported. **If the terminal window doesn’t accept your keyboard input, click with your mouse right after the colon in `Enter the number corresponding to your name:`** to set the focus to the terminal window.
-* A list of chat participants will appear. Select your name so that your messages are displayed in green chat bubbles, just like on WhatsApp. 
+The tool supports both interactive and non-interactive modes:
 
-* Once the conversion completes, you can choose to open the HTML files immediately in your browser (just hit enter). From there, you can save the chat as a PDF or print it if needed.  
+### Interactive Mode (Default)
+**CLI Parameters:**
+
+`-o, --output-dir`: Base directory where the chat folder will be created (optional,default: current directory)
+
+
+* After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
+* You can enter start and end dates to export only a specific date range. If you leave the fields empty, the entire chat will be exported. **If the terminal window doesn't accept your keyboard input, click with your mouse right after the colon in `Enter the number corresponding to your name:`** to set the focus to the terminal window.
+* A list of chat participants will appear. Select your name so that your messages are displayed in green chat bubbles, just like on WhatsApp.
+* Once the conversion completes, you can choose to open the HTML files immediately in your browser (just hit enter). From there, you can save the chat as a PDF or print it if needed.
+
+### Command Line Interface (Non-Interactive Mode)
+
+For automation, scripting, or when you know all parameters in advance, you can use the non-interactive CLI mode. This mode processes the chat without any prompts and is perfect for batch processing or integration into other tools.
+
+**Basic Usage:**
+```bash
+python main.py -n -z "path/to/chat.zip" -p "Your Name"
+```
+
+**CLI Parameters:**
+- `-n, --non-interactive`: Enable non-interactive mode (required)
+- `-z, --zip-file`: Path to WhatsApp chat export ZIP file (required)
+- `-p, --participant`: Your name exactly as it appears in the chat (required)
+- `--from-date`: Optional start date for filtering (formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)
+- `--until-date`: Optional end date for filtering
+- `-o, --output-dir`: Base directory where the chat folder will be created (default: current directory)
+
+**Examples:**
+
+Basic conversion:
+```bash
+python main.py -n -z "WhatsApp Chat with John.zip" -p "Your Name"
+```
+With absolute path to ZIP file (Windows):
+```bash
+python main.py -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
+```
+
+With date filtering:
+```bash
+python main.py -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
+```
+
+Custom output directory (creates chat folder in /tmp instead of current directory):
+```bash
+python main.py -n -z "chat.zip" -p "Your Name" -o "/tmp"
+```
+
+Windows paths (important: no trailing backslash):
+```bash
+python main.py -n -z "chat.zip" -p "Your Name" -o "C:\temp"
+```
+
+**Important Notes:**
+- The participant name must match exactly as it appears in the chat (case-sensitive)
+- If the participant name is not found, the tool will display all available participants and exit
+
 
 * When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions. 
    * **In Google Chrome**: Go to `Print` → `More settings` → Check `Background graphics`.
