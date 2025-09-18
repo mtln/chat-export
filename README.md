@@ -77,7 +77,7 @@ The tool supports both interactive and non-interactive modes:
 ### Interactive Mode (Default)
 **CLI Parameters:**
 
-`-o, --output-dir`: Base directory where the chat folder will be created (optional,default: current directory)
+`-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
 
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
@@ -95,12 +95,14 @@ python main.py -n -z "path/to/chat.zip" -p "Your Name"
 ```
 
 **CLI Parameters:**
+
 - `-n, --non-interactive`: Enable non-interactive mode (required)
 - `-z, --zip-file`: Path to WhatsApp chat export ZIP file (required)
 - `-p, --participant`: Your name exactly as it appears in the chat (required)
 - `--from-date`: Optional start date for filtering (formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)
 - `--until-date`: Optional end date for filtering
 - `-o, --output-dir`: Base directory where the chat folder will be created (default: current directory)
+
 
 **Examples:**
 
