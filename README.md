@@ -3,7 +3,7 @@
 This tool converts a WhatsApp chat export into two HTML formats: one with inline media (such as images, videos, and audio files) and a compact version with media links.
 
 
-Video Tutorial (still refers to the previously used tool name instead of `chat-export`):  
+Video Tutorial (still refers to the previously used tool name instead of `chat-export`, doesn't cover new features like the non-interactive CLI mode yet):  
 [![YouTube](https://img.youtube.com/vi/s1dMO8pjkC8/0.jpg)](https://www.youtube.com/watch?v=s1dMO8pjkC8)"
 
 ## Binary Release Downloads
@@ -42,7 +42,12 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 2. **Transfer the File:** Move the exported ZIP file to your computer. If you have sent it to yourself with WhatsApp, you can download it with WhatsApp Web or with the WhatsApp App on your computer. Delete the WhatsApp message afterwards to save space.
 
-3. **Download and Run the Tool:** 
+3. **Install and Run the Tool:** 
+
+### Option 1: Download Binary Executables: Easy for non-technical users
+
+   If you don't know what Python is and just want to use the tool without having to deal with technical details, you can download the binary executables.
+   
    - For Windows, download [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe).
 
    Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway. An EV code signing certificate for Windows costs a lot. If I get enough donations, I will buy one, so I can release signed exe files.
@@ -50,6 +55,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    - For Mac, download [chat-export-installer.pkg](https://github.com/mtln/chat-export/releases/latest/download/chat-export-installer.pkg)
 
    Once installed on Mac:
+
    1. Open the **Terminal** app (e.g. by typing "terminal" in Spotlight Search).
    2. Type: `chat-export`
     
@@ -59,9 +65,47 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    The executables have been built with pyinstaller.
 
-   **OR**
+### Option 2: Install via pip
+   
+   If you have Python installed, you can install chat-export as a command-line tool:
+   ```
+   pip install chat-export
+   ```
+   
+   **Optional: Install with platform-specific dependencies for native file dialogs**
+   
+   For better user experience with native file picker dialogs, you can install platform-specific dependencies:
+   
+   **On macOS:**
+   ```
+   pip install chat-export[macos]
+   ```
+   
+   **On Windows:**
+   ```
+   pip install chat-export[windows]
+   ```
+   
+   
+   
+   *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
+   
+   After installation, you can run it from anywhere in your terminal:
 
-   - If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
+   ```
+   chat-export
+   chat-export --help
+   ```
+   
+   To uninstall:
+   ```
+   pip uninstall chat-export
+   ```
+
+
+###Option 3: Run Directly (No Installation)
+   
+   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
      ```
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
@@ -70,14 +114,17 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
 
-**Usage**
+## Usage
 
 The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
+
+Just run `chat-export` in your terminal.
+
 **CLI Parameters:**
 
-`-o, --output-dir`: Base directory where the chat folder will be created (optional,default: current directory)
+`-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
 
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
@@ -90,11 +137,12 @@ The tool supports both interactive and non-interactive modes:
 For automation, scripting, or when you know all parameters in advance, you can use the non-interactive CLI mode. This mode processes the chat without any prompts and is perfect for batch processing or integration into other tools.
 
 **Basic Usage:**
-```bash
-python main.py -n -z "path/to/chat.zip" -p "Your Name"
+```
+chat-export -n -z "path/to/chat.zip" -p "Your Name"
 ```
 
 **CLI Parameters:**
+
 - `-n, --non-interactive`: Enable non-interactive mode (required)
 - `-z, --zip-file`: Path to WhatsApp chat export ZIP file (required)
 - `-p, --participant`: Your name exactly as it appears in the chat (required)
@@ -102,30 +150,31 @@ python main.py -n -z "path/to/chat.zip" -p "Your Name"
 - `--until-date`: Optional end date for filtering
 - `-o, --output-dir`: Base directory where the chat folder will be created (default: current directory)
 
+
 **Examples:**
 
 Basic conversion:
-```bash
-python main.py -n -z "WhatsApp Chat with John.zip" -p "Your Name"
+```
+chat-export -n -z "WhatsApp Chat with John.zip" -p "Your Name"
 ```
 With absolute path to ZIP file (Windows):
-```bash
-python main.py -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
+```
+chat-export -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
 ```
 
 With date filtering:
-```bash
-python main.py -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
+```
+chat-export -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
 ```
 
 Custom output directory (creates chat folder in /tmp instead of current directory):
-```bash
-python main.py -n -z "chat.zip" -p "Your Name" -o "/tmp"
+```
+chat-export -n -z "chat.zip" -p "Your Name" -o "/tmp"
 ```
 
 Windows paths (important: no trailing backslash):
-```bash
-python main.py -n -z "chat.zip" -p "Your Name" -o "C:\temp"
+```
+chat-export -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ```
 
 **Important Notes:**

@@ -286,7 +286,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.1"
+version = "0.9.2"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -408,7 +408,8 @@ class MessageParser:
                 break
 
         if first_line is None:
-            raise ValueError(f"Could not determine the date format of the chat: {chat_content.split('\\n')[0]}")
+            first_line_content = chat_content.split('\n')[0]
+            raise ValueError(f"Could not determine the date format of the chat: {first_line_content}")
 
         first_line_date = first_line.split(',')[0].replace('[', '')
         # find first non-digit in the date string
@@ -1212,7 +1213,6 @@ def open_html_file_in_browser(html_file: Path):
 
 def main():
     args = parse_arguments()
-
     if args.non_interactive:
         # Non-interactive mode
         print(f"chat-export v{version} - Non-interactive mode")
