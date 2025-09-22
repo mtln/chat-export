@@ -51,9 +51,29 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    pip install chat-export
    ```
    
+   **Optional: Install with platform-specific dependencies for native file dialogs**
+   
+   For better user experience with native file picker dialogs, you can install platform-specific dependencies:
+   
+   **On macOS:**
+   ```
+   pip install chat-export[macos]
+   ```
+   
+   **On Windows:**
+   ```
+   pip install chat-export[windows]
+   ```
+   
+   
+   
+   *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
+   
    After installation, you can run it from anywhere in your terminal:
+   
    ```
    chat-export
+   chat-export --help
    ```
    
    To uninstall:

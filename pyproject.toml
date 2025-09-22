@@ -9,7 +9,7 @@ description = "Convert WhatsApp chat exports to HTML format"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "matlon GmbH", email = "software@matlon.ch", url = "https://matlon.ch"}
+    {name = "matlon GmbH", email = "software@matlon.ch"}
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -32,6 +32,10 @@ classifiers = [
 requires-python = ">=3.7"
 dependencies = []
 keywords = ["whatsapp", "chat", "export", "html", "conversion", "archive"]
+
+[project.optional-dependencies]
+macos = ["pyobjc-framework-Cocoa>=9.0"]
+windows = ["pywin32>=306"]
 
 [project.urls]
 Homepage = "https://chat-export.click"
