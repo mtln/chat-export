@@ -42,7 +42,27 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 2. **Transfer the File:** Move the exported ZIP file to your computer. If you have sent it to yourself with WhatsApp, you can download it with WhatsApp Web or with the WhatsApp App on your computer. Delete the WhatsApp message afterwards to save space.
 
-3. **Download and Run the Tool:** 
+3. **Install and Run the Tool:** 
+
+   **Option 1: Install via pip (Recommended)**
+   
+   If you have Python installed, you can install chat-export as a command-line tool:
+   ```
+   pip install chat-export
+   ```
+   
+   After installation, you can run it from anywhere in your terminal:
+   ```
+   chat-export
+   ```
+   
+   To uninstall:
+   ```
+   pip uninstall chat-export
+   ```
+
+   **Option 2: Download Binary Executables**
+   
    - For Windows, download [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe).
 
    Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway. An EV code signing certificate for Windows costs a lot. If I get enough donations, I will buy one, so I can release signed exe files.
@@ -59,9 +79,9 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    The executables have been built with pyinstaller.
 
-   **OR**
-
-   - If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
+   **Option 3: Run Directly (No Installation)**
+   
+   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
      ```
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
@@ -91,7 +111,7 @@ For automation, scripting, or when you know all parameters in advance, you can u
 
 **Basic Usage:**
 ```
-python main.py -n -z "path/to/chat.zip" -p "Your Name"
+chat-export -n -z "path/to/chat.zip" -p "Your Name"
 ```
 
 **CLI Parameters:**
@@ -108,26 +128,26 @@ python main.py -n -z "path/to/chat.zip" -p "Your Name"
 
 Basic conversion:
 ```
-python main.py -n -z "WhatsApp Chat with John.zip" -p "Your Name"
+chat-export -n -z "WhatsApp Chat with John.zip" -p "Your Name"
 ```
 With absolute path to ZIP file (Windows):
 ```
-python main.py -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
+chat-export -n -z "c:\temp\WhatsApp Chat with John.zip" -p "Your Name"
 ```
 
 With date filtering:
 ```
-python main.py -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
+chat-export -n -z "chat.zip" -p "Your Name" --from-date "01.01.2024" --until-date "31.12.2024"
 ```
 
 Custom output directory (creates chat folder in /tmp instead of current directory):
 ```
-python main.py -n -z "chat.zip" -p "Your Name" -o "/tmp"
+chat-export -n -z "chat.zip" -p "Your Name" -o "/tmp"
 ```
 
 Windows paths (important: no trailing backslash):
 ```
-python main.py -n -z "chat.zip" -p "Your Name" -o "C:\temp"
+chat-export -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ```
 
 **Important Notes:**
