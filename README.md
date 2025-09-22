@@ -3,7 +3,7 @@
 This tool converts a WhatsApp chat export into two HTML formats: one with inline media (such as images, videos, and audio files) and a compact version with media links.
 
 
-Video Tutorial (still refers to the previously used tool name instead of `chat-export`):  
+Video Tutorial (still refers to the previously used tool name instead of `chat-export`, doesn't cover new features like the non-interactive CLI mode yet):  
 [![YouTube](https://img.youtube.com/vi/s1dMO8pjkC8/0.jpg)](https://www.youtube.com/watch?v=s1dMO8pjkC8)"
 
 ## Binary Release Downloads
@@ -44,7 +44,28 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
 3. **Install and Run the Tool:** 
 
-   **Option 1: Install via pip (Recommended)**
+### Option 1: Download Binary Executables: Easy for non-technical users
+
+   If you don't know what Python is and just want to use the tool without having to deal with technical details, you can download the binary executables.
+   
+   - For Windows, download [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe).
+
+   Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway. An EV code signing certificate for Windows costs a lot. If I get enough donations, I will buy one, so I can release signed exe files.
+
+   - For Mac, download [chat-export-installer.pkg](https://github.com/mtln/chat-export/releases/latest/download/chat-export-installer.pkg)
+
+   Once installed on Mac:
+
+   1. Open the **Terminal** app (e.g. by typing "terminal" in Spotlight Search).
+   2. Type: `chat-export`
+    
+   This will start the chat export tool from anywhere in the terminal.
+
+   To uninstall `chat-export` from Mac, open the Terminal and run: `sudo rm /usr/local/bin/chat-export`
+
+   The executables have been built with pyinstaller.
+
+### Option 2: Install via pip
    
    If you have Python installed, you can install chat-export as a command-line tool:
    ```
@@ -70,7 +91,7 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
    
    After installation, you can run it from anywhere in your terminal:
-   
+
    ```
    chat-export
    chat-export --help
@@ -81,27 +102,10 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    pip uninstall chat-export
    ```
 
-   **Option 2: Download Binary Executables**
+
+###Option 3: Run Directly (No Installation)
    
-   - For Windows, download [chat-export.exe](https://github.com/mtln/chat-export/releases/latest/download/chat-export.exe).
-
-   Because the .exe is unsigned, you will see a warning, but after clicking on "More Information" you should have the option to run it anyway. An EV code signing certificate for Windows costs a lot. If I get enough donations, I will buy one, so I can release signed exe files.
-
-   - For Mac, download [chat-export-installer.pkg](https://github.com/mtln/chat-export/releases/latest/download/chat-export-installer.pkg)
-
-   Once installed on Mac:
-   1. Open the **Terminal** app (e.g. by typing "terminal" in Spotlight Search).
-   2. Type: `chat-export`
-    
-   This will start the chat export tool from anywhere in the terminal.
-
-   To uninstall `chat-export` from Mac, open the Terminal and run: `sudo rm /usr/local/bin/chat-export`
-
-   The executables have been built with pyinstaller.
-
-   **Option 3: Run Directly (No Installation)**
-   
-   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no installation required) with the following command:
+   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
      ```
      python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
@@ -110,11 +114,14 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
 
-**Usage**
+## Usage
 
 The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
+
+Just run `chat-export` in your terminal.
+
 **CLI Parameters:**
 
 `-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
