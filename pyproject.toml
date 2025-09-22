@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Communications :: Chat",
     "Topic :: Text Processing :: Markup :: HTML",
     "Topic :: Utilities",
-    "Topic :: Utilities :: Archiving",
+    "Topic :: System :: Archiving",
 ]
 requires-python = ">=3.7"
 dependencies = []
