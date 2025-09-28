@@ -93,9 +93,13 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
 
    ```
    chat-export
+   ```
+
+   or
+   ```
    chat-export --help
    ```
-   
+
    To uninstall:
    ```
    pip uninstall chat-export
@@ -115,6 +119,20 @@ uninstall with:
 uv tool uninstall chat-export
 ```
 
+   ```
+
+#### Using uv tool instead of pip
+   If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
+
+   
+   `uv tool install chat-export[windows]` 
+   or 
+   `uv tool install chat-export[macos]` 
+   or just 
+   `uv tool install chat-export` 
+   uninstall with: 
+   `uv tool uninstall chat-export`
+   
 
 ###Option 3: Run Directly (No Installation)
    

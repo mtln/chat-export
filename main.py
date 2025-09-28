@@ -286,7 +286,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.2"
+version = "0.9.3"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -455,6 +455,44 @@ class MessageParser:
         except (ValueError, AttributeError):
             return None
 
+    @staticmethod
+    def trim_zero_widths(text: str) -> str:
+        """Trim harmless zero-width characters from the start and end of a string.
+
+        Safe to strip: ZWSP, ZWNJ, ZWJ, BOM.
+        Does NOT strip directional controls like LRM, RLM, FSI, PDI, etc.
+        """
+
+        SAFE_ZERO_WIDTHS = "\u200B\u200C\u200D\uFEFF"  # ZWSP, ZWNJ, ZWJ, BOM
+        return text.strip(SAFE_ZERO_WIDTHS).strip()
+
+
+    @staticmethod
+    def mark_invisible_chars(text: str) -> str:
+        """Replace zero-width and directional Unicode control chars with ASCII markers."""
+
+        replacements = {
+            "\u200B": ":ZWSP:",   # Zero Width Space
+            "\u200C": ":ZWNJ:",   # Zero Width Non-Joiner
+            "\u200D": ":ZWJ:",    # Zero Width Joiner
+            "\uFEFF": ":BOM:",    # Zero Width No-Break Space / BOM
+
+            "\u200E": ":LRM:",    # Left-to-Right Mark
+            "\u200F": ":RLM:",    # Right-to-Left Mark
+            "\u2066": ":LRI:",    # Left-to-Right Isolate
+            "\u2067": ":RLI:",    # Right-to-Left Isolate
+            "\u2068": ":FSI:",    # First Strong Isolate
+            "\u2069": ":PDI:",    # Pop Directional Isolate
+
+            "\u202A": ":LRE:",    # Left-to-Right Embedding
+            "\u202B": ":RLE:",    # Right-to-Left Embedding
+            "\u202C": ":PDF:",    # Pop Directional Formatting
+            "\u202D": ":LRO:",    # Left-to-Right Override
+            "\u202E": ":RLO:",    # Right-to-Left Override
+        }
+
+        return "".join(replacements.get(ch, ch) for ch in text)
+
     def get_senders(self, chat_content):
         """Extract all unique senders from chat content."""
         senders = set()
@@ -463,6 +501,8 @@ class MessageParser:
             match = pattern.match(line)
             if match:
                 sender = match.group(2)
+                sender = self.trim_zero_widths(sender)
+                sender = self.mark_invisible_chars(sender)
                 senders.add(sender)
         return sorted(list(senders))
 
@@ -585,6 +625,8 @@ class MessageParser:
 
             if match:
                 timestamp, sender, content = match.groups()
+                sender = self.trim_zero_widths(sender)
+                sender = self.mark_invisible_chars(sender)
                 messages.append(Message.create_with_context(
                     timestamp=timestamp,
                     sender=sender,
