@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chat-export"
-version = "0.9.2"
+version = "0.9.3"
 description = "Convert WhatsApp chat exports to HTML format"
 readme = "README.md"
 license = {file = "LICENSE"}
