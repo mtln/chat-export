@@ -1,4 +1,5 @@
 import argparse
+import base64
 import difflib
 import os
 import sys
@@ -286,7 +287,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.3"
+version = "0.9.4"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -354,6 +355,10 @@ Examples:
     parser.add_argument('-o', '--output-dir',
                        type=str,
                        help='Base directory where the ZIP-derived output folder will be created (default: current working directory)')
+
+    parser.add_argument('--embed-media',
+                       action='store_true',
+                       help='Embed media files as base64 in HTML instead of linking to external files')
 
     args = parser.parse_args()
 
@@ -652,16 +657,25 @@ class MessageParser:
 class HTMLRenderer(Renderer):
     """Renders messages to HTML format."""
 
-    def __init__(self, output_dir, has_media=False):
+    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None):
         super().__init__(output_dir)
         self.has_media = has_media
+        self.embed_media = embed_media
+        self.zip_path = zip_path
         self.html_filename = 'chat.html'
         self.html_filename_media_linked = 'chat_media_linked.html'
+        if embed_media:
+            # replace .zip with .html
+            self.html_filename = self.zip_path[:-4] + '.html'
+            self.html_filename_media_linked = None
         self.attachments_to_extract = set()
 
     def get_generated_files(self) -> list[Path]:
         """Get the generated files."""
-        return [Path(self.output_dir, self.html_filename), Path(self.output_dir, self.html_filename_media_linked)]
+        result = [Path(self.output_dir, self.html_filename)]
+        if self.html_filename_media_linked:
+            result.append(Path(self.output_dir, self.html_filename_media_linked))
+        return result
 
     def get_css_styles(self):
         """Return the CSS styles for the HTML output."""
@@ -695,6 +709,30 @@ class HTMLRenderer(Renderer):
             max-width: 100%;
             border-radius: 5px;
             margin: 5px 0;
+        }
+        .text-file {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            margin: 5px 0;
+        }
+        .text-file h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 0.9em;
+        }
+        .text-content {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 3px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         .timestamp {
             color: #667781;
@@ -753,6 +791,83 @@ class HTMLRenderer(Renderer):
 </body>
 </html>"""
 
+    def get_mime_type(self, filename):
+        """Get MIME type based on file extension."""
+        ext = filename.lower()
+        if ext.endswith(('.jpg', '.jpeg')):
+            return 'image/jpeg'
+        elif ext.endswith('.png'):
+            return 'image/png'
+        elif ext.endswith('.gif'):
+            return 'image/gif'
+        elif ext.endswith('.webp'):
+            return 'image/webp'
+        elif ext.endswith('.mp4'):
+            return 'video/mp4'
+        elif ext.endswith('.opus'):
+            return 'audio/ogg'
+        elif ext.endswith('.mp3'):
+            return 'audio/mpeg'
+        elif ext.endswith('.wav'):
+            return 'audio/wav'
+        elif ext.endswith('.m4a'):
+            return 'audio/mp4'
+        elif ext.endswith('.pdf'):
+            return 'application/pdf'
+        elif ext.endswith(('.doc', '.docx')):
+            return 'application/msword'
+        elif ext.endswith(('.xls', '.xlsx')):
+            return 'application/vnd.ms-excel'
+        elif ext.endswith(('.ppt', '.pptx')):
+            return 'application/vnd.ms-powerpoint'
+        elif ext.endswith('.txt'):
+            return 'text/plain'
+        elif ext.endswith('.rtf'):
+            return 'application/rtf'
+        elif ext.endswith('.zip'):
+            return 'application/zip'
+        elif ext.endswith('.rar'):
+            return 'application/x-rar-compressed'
+        elif ext.endswith('.7z'):
+            return 'application/x-7z-compressed'
+        elif ext.endswith('.tar'):
+            return 'application/x-tar'
+        elif ext.endswith('.gz'):
+            return 'application/gzip'
+        elif ext.endswith('.csv'):
+            return 'text/csv'
+        elif ext.endswith('.json'):
+            return 'application/json'
+        elif ext.endswith('.xml'):
+            return 'application/xml'
+        elif ext.endswith('.html'):
+            return 'text/html'
+        elif ext.endswith('.css'):
+            return 'text/css'
+        elif ext.endswith('.js'):
+            return 'application/javascript'
+        elif ext.endswith('.py'):
+            return 'text/x-python'
+        elif ext.endswith('.java'):
+            return 'text/x-java-source'
+        elif ext.endswith(('.cpp', '.c', '.h')):
+            return 'text/x-c'
+        else:
+            return 'application/octet-stream'
+
+    def encode_media_to_base64(self, attachment_name):
+        """Read media file from zip and encode to base64."""
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                with zip_ref.open(attachment_name) as media_file:
+                    media_data = media_file.read()
+                    base64_data = base64.b64encode(media_data).decode('utf-8')
+                    mime_type = self.get_mime_type(attachment_name)
+                    return f"data:{mime_type};base64,{base64_data}"
+        except Exception as e:
+            print(f"Warning: Could not encode {attachment_name} to base64: {e}")
+            return None
+
     def render_media_element(self, attachment_name, is_media_linked=False):
         """Render a media element based on its file extension."""
         media_path = f"./media/{attachment_name}"
@@ -763,6 +878,32 @@ class HTMLRenderer(Renderer):
 
         # Render media inline in main version
         ext = attachment_name.lower()
+        
+        # If embed_media is enabled, try to encode as base64
+        if self.embed_media and self.zip_path:
+            base64_data = self.encode_media_to_base64(attachment_name)
+            if base64_data:
+                # Images
+                if ext.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+                    return f'<img class="media" src="{base64_data}"><br>'
+                # Videos
+                elif ext.endswith('.mp4'):
+                    return f'<video class="media" controls><source src="{base64_data}" type="video/mp4"></video><br>'
+                # Audio files
+                elif ext.endswith('.opus'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/ogg"></audio><br>'
+                elif ext.endswith('.wav'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/wav"></audio><br>'
+                elif ext.endswith('.mp3'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/mpeg"></audio><br>'
+                elif ext.endswith('.m4a'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/mp4"></audio><br>'
+                
+                # Other documents - provide download link with base64 data
+                else:
+                    return f'<a href="{base64_data}" download="{attachment_name}">📎 {attachment_name}</a><br>'
+        
+        # Fallback to file references
         if ext.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
             return f'<img class="media" src="{media_path}"><br>'
         elif ext.endswith('.mp4'):
@@ -838,7 +979,11 @@ class HTMLRenderer(Renderer):
         self.chat = chat
         # Prepare file paths
         main_html_path = os.path.join(self.output_dir, self.html_filename)
-        media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
+        if self.html_filename_media_linked:
+            media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
+        else:
+            # temp file
+            media_linked_html_path = "_temp.tmp"
 
         # Open both files for writing
         with open(main_html_path, 'w', encoding='utf-8') as main_f, \
@@ -875,11 +1020,14 @@ class HTMLRenderer(Renderer):
             main_f.write(footer)
             media_f.write(footer)
 
+        if self.embed_media:
+            os.remove(media_linked_html_path)
+
         return self.attachments_to_extract
 
 
 class ChatExport:
-    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
+    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None, embed_media=False):
         # Validate zip file existence
         if not os.path.exists(zip_path):
             raise FileNotFoundError(f"Could not find the file: {zip_path}\nPlease check if the file path is correct.")
@@ -893,6 +1041,7 @@ class ChatExport:
         self.from_date = from_date
         self.until_date = until_date
         self.participant_name = participant_name
+        self.embed_media = embed_media
 
         # Set up output directory: base_output_dir/zip_filename or just zip_filename
         zip_stem = Path(zip_path).stem
@@ -972,7 +1121,9 @@ class ChatExport:
         # Setup renderer
         self.renderer = HTMLRenderer(
             output_dir=self.output_dir,
-            has_media=self.has_media
+            has_media=self.has_media,
+            embed_media=self.embed_media,
+            zip_path=self.zip_path
         )
 
     @staticmethod
@@ -1015,9 +1166,13 @@ class ChatExport:
                 print(f"Cleaning existing directory: {self.output_dir}")
                 shutil.rmtree(self.output_dir)
 
+        
+        # if not embed_media, create media directory
+        if not self.embed_media:
         # Create fresh output directories
-        os.makedirs(self.output_dir)
-        os.makedirs(self.media_dir)
+            os.makedirs(self.output_dir)
+            os.makedirs(self.media_dir)
+        
 
         
 
@@ -1046,7 +1201,9 @@ class ChatExport:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
         else:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            shutil.rmtree(self.media_dir)
+            # delete if exists
+            if os.path.exists(self.media_dir): 
+                shutil.rmtree(self.media_dir)
         # Setup modular components now that we know the platform and media status
         self.setup_modular_components()
 
@@ -1089,7 +1246,7 @@ class ChatExport:
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
 
-        if self.has_media:
+        if self.has_media and not self.embed_media:
             print("Extracting attachments/media...")
             # extract attachments of rendered messages
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
@@ -1097,6 +1254,8 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
+        elif self.has_media and self.embed_media:
+            print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
 
@@ -1127,9 +1286,10 @@ class ChatExport:
             print(f"Cleaning existing directory: {self.output_dir}")
             shutil.rmtree(self.output_dir)
 
-        # Create fresh output directories
-        os.makedirs(self.output_dir)
-        os.makedirs(self.media_dir)
+        if not self.embed_media:
+            # Create fresh output directories
+            os.makedirs(self.output_dir)
+            os.makedirs(self.media_dir)
 
         # Validate that it's a proper ZIP file
         try:
@@ -1162,7 +1322,10 @@ class ChatExport:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
         else:
             print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            shutil.rmtree(self.media_dir)
+            # delete if exists
+            if os.path.exists(self.media_dir):
+                shutil.rmtree(self.media_dir)
+    
 
         # Setup modular components now that we know the platform and media status
         self.setup_modular_components()
@@ -1192,7 +1355,7 @@ class ChatExport:
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
 
-        if self.has_media:
+        if self.has_media and not self.embed_media:
             print("Extracting attachments/media...")
             # extract attachments of rendered messages
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
@@ -1200,6 +1363,8 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
+        elif self.has_media and self.embed_media:
+            print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
         
@@ -1212,7 +1377,7 @@ def check_tkinter_availability():
         root = tk.Tk()
         root.destroy()
         return True
-    except Exception as e:
+    except Exception:
         print("Tkinter is not available on your system. Using prompt input instead of file picker dialog.")
         return False
 
@@ -1267,7 +1432,7 @@ def main():
             from_date = args.from_date if args.from_date else None
             until_date = args.until_date if args.until_date else None
 
-            chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir)
+            chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir, args.embed_media)
             chat_export.process_chat_non_interactive()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             print("Done.")
@@ -1295,7 +1460,7 @@ def main():
             if not selected_zip_file:
                 raise FileNotFoundError("No file selected.")
             print(f"Processing selected file: {selected_zip_file}...")
-            chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir)
+            chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir, embed_media=args.embed_media)
             chat_export.process_chat()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             print("Done.")

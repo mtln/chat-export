@@ -151,6 +151,22 @@ Just run `chat-export` in your terminal.
 
 For automation, scripting, or when you know all parameters in advance, you can use the non-interactive CLI mode. This mode processes the chat without any prompts and is perfect for batch processing or integration into other tools.
 
+#### Media Embedding Options
+
+The tool offers two approaches for handling media files:
+
+**Default Behavior (External Media Files):**
+- Creates a folder structure with HTML files and a separate `media/` folder
+- Media files are extracted and linked to from the HTML
+- Results in multiple files that need to be kept together
+- Smaller HTML files, but requires managing multiple files
+
+**Embedded Media (`--embed-media` option):**
+- Creates a single self-contained HTML file with all media embedded as base64
+- No external media files are created or needed
+- Perfect for sharing, archiving, or when you want everything in one file
+- Larger HTML file size, but completely portable
+
 **Basic Usage:**
 ```
 chat-export -n -z "path/to/chat.zip" -p "Your Name"
@@ -164,6 +180,7 @@ chat-export -n -z "path/to/chat.zip" -p "Your Name"
 - `--from-date`: Optional start date for filtering (formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)
 - `--until-date`: Optional end date for filtering
 - `-o, --output-dir`: Base directory where the chat folder will be created (default: current directory)
+- `--embed-media`: Embed media files as base64 in HTML instead of linking to external files (optional)
 
 
 **Examples:**
@@ -192,9 +209,15 @@ Windows paths (important: no trailing backslash):
 chat-export -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ```
 
+With embedded media (creates a single self-contained HTML file):
+```
+chat-export -n -z "chat.zip" -p "Your Name" --embed-media
+```
+
 **Important Notes:**
 - The participant name must match exactly as it appears in the chat (case-sensitive)
 - If the participant name is not found, the tool will display all available participants and exit
+- When using `--embed-media`, media files are encoded as base64 and embedded directly in the HTML, creating a single self-contained file that doesn't require external media files
 
 
 * When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions. 
