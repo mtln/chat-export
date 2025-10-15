@@ -666,7 +666,7 @@ class HTMLRenderer(Renderer):
         self.html_filename_media_linked = 'chat_media_linked.html'
         if embed_media:
             # replace .zip with .html
-            self.html_filename = self.zip_path[:-4] + '.html'
+            self.html_filename = Path(self.zip_path).stem + '.html'
             self.html_filename_media_linked = None
         self.attachments_to_extract = set()
 
@@ -1045,12 +1045,18 @@ class ChatExport:
 
         # Set up output directory: base_output_dir/zip_filename or just zip_filename
         zip_stem = Path(zip_path).stem
-        if base_output_dir:
-            # Normalize the base output directory path (handle Windows paths, quotes, etc.)
-            normalized_base_dir = parse_path(base_output_dir)
-            self.output_dir = os.path.join(normalized_base_dir, zip_stem)
+        if self.embed_media:
+            if base_output_dir:
+                self.output_dir = parse_path(base_output_dir)
+            else:
+                self.output_dir = ""
         else:
-            self.output_dir = zip_stem
+            if base_output_dir:
+                # Normalize the base output directory path (handle Windows paths, quotes, etc.)
+                normalized_base_dir = parse_path(base_output_dir)
+                self.output_dir = os.path.join(normalized_base_dir, zip_stem)
+            else:
+                self.output_dir = zip_stem
         self.media_dir = os.path.join(self.output_dir, "media")
 
         self.own_name = participant_name
@@ -1162,15 +1168,16 @@ class ChatExport:
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
 
-        if os.path.exists(self.output_dir):
-                print(f"Cleaning existing directory: {self.output_dir}")
-                shutil.rmtree(self.output_dir)
+        # safety: clean only if it's a subfolder with zip_base_name
+        if os.path.exists(self.output_dir) and str(self.output_dir).endswith(zip_base_name):
+            print(f"Cleaning existing directory: {self.output_dir}")
+            shutil.rmtree(self.output_dir)
 
-        
+        os.makedirs(self.output_dir, exist_ok=True)
+
         # if not embed_media, create media directory
         if not self.embed_media:
         # Create fresh output directories
-            os.makedirs(self.output_dir)
             os.makedirs(self.media_dir)
         
 
@@ -1282,13 +1289,15 @@ class ChatExport:
         # Get the base name of the zip file without extension
         zip_base_name = Path(self.zip_path).stem
 
-        if os.path.exists(self.output_dir):
+        # safety: clean only if it's a subfolder with zip_base_name
+        if os.path.exists(self.output_dir) and str(self.output_dir).endswith(zip_base_name):
             print(f"Cleaning existing directory: {self.output_dir}")
             shutil.rmtree(self.output_dir)
+        
+        os.makedirs(self.output_dir, exist_ok=True)
 
         if not self.embed_media:
             # Create fresh output directories
-            os.makedirs(self.output_dir)
             os.makedirs(self.media_dir)
 
         # Validate that it's a proper ZIP file
