@@ -287,7 +287,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.4"
+version = "0.9.5"
 
 donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
 
@@ -1049,14 +1049,14 @@ class ChatExport:
             if base_output_dir:
                 self.output_dir = parse_path(base_output_dir)
             else:
-                self.output_dir = ""
-        else:
+                self.output_dir = Path("")
+        else: 
             if base_output_dir:
                 # Normalize the base output directory path (handle Windows paths, quotes, etc.)
                 normalized_base_dir = parse_path(base_output_dir)
-                self.output_dir = os.path.join(normalized_base_dir, zip_stem)
+                self.output_dir = Path(os.path.join(normalized_base_dir, zip_stem))
             else:
-                self.output_dir = zip_stem
+                self.output_dir = Path(zip_stem)
         self.media_dir = os.path.join(self.output_dir, "media")
 
         self.own_name = participant_name
