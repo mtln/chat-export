@@ -128,6 +128,14 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
      ```
      python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
      ```
+     Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
+     ```
+     python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
+     ```
+     or
+     ```
+     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
+     ```
 
 ## Usage
 
@@ -135,11 +143,12 @@ The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
 
-Just run `chat-export` in your terminal.
+Just run `chat-export` in your terminal. Use CLI parameters to pass options for special features, such as `--output-dir` or `--embed-media`.
 
 **CLI Parameters:**
 
 `-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
+`--embed-media`: Embed media files as base64 in HTML instead of linking to external files (optional)
 
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
