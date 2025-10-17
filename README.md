@@ -77,65 +77,71 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    For better user experience with native file picker dialogs, you can install platform-specific dependencies:
    
    **On macOS:**
-   ```
-   pip install chat-export[macos]
-   ```
+```
+pip install chat-export[macos]
+```
    
    **On Windows:**
-   ```
-   pip install chat-export[windows]
-   ```
+```
+pip install chat-export[windows]
+```
    
       
    *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
    
    After installation, you can run it from anywhere in your terminal:
 
-   ```
-   chat-export
-   ```
+```
+chat-export
+```
 
-   or
-   ```
-   chat-export --help
-   ```
+or
+```
+chat-export --help
+```
 
-   To uninstall:
-   ```
-   pip uninstall chat-export
-   ```
+To uninstall:
+```
+pip uninstall chat-export
+```
 
 #### Using uv tool instead of pip
-   If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
+If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
 
-   
-   `uv tool install chat-export[windows]` 
-   or 
-   `uv tool install chat-export[macos]` 
-   or just 
-   `uv tool install chat-export` 
-   uninstall with: 
-   `uv tool uninstall chat-export`
-   
 
-###Option 3: Run Directly (No Installation)
-   
-   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
-     ```
-     python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
-     or
-     ```
-     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
-     Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
-     ```
-     python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
-     ```
-     or
-     ```
-     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
-     ```
+`uv tool install chat-export[windows]` 
+or 
+`uv tool install chat-export[macos]` 
+or just 
+`uv tool install chat-export` 
+uninstall with: 
+`uv tool uninstall chat-export`
+
+
+### Option 3: Run Directly (No Installation)
+
+If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
+```
+
+or
+
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
+```
+
+Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
+
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
+
+or
+
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
 
 ## Usage
 
@@ -143,7 +149,7 @@ The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
 
-Just run `chat-export` in your terminal. Use CLI parameters to pass options for special features, such as `--output-dir` or `--embed-media`.
+Just run `chat-export` in your terminal. Use CLI parameters for special features, such as `--output-dir` or `--embed-media`.
 
 **CLI Parameters:**
 
