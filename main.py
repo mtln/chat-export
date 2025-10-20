@@ -101,6 +101,7 @@ class Chat:
 @dataclass(frozen=True)
 class Message:
     """Individual message with computed properties using Chat context."""
+    id: int
     timestamp: str
     sender: str
     content: str
@@ -113,7 +114,7 @@ class Message:
     has_attachment: bool = False
 
     @classmethod
-    def create_with_context(cls, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
+    def create_with_context(cls, id: int, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
         """Create a Message with computed properties using Chat context."""
         # Compute attachment name
         attachment_name = cls._extract_attachment_name(content, chat)
@@ -129,6 +130,7 @@ class Message:
         formatted_timestamp = cls._re_render_with_day_of_week(timestamp, parsed_date)
 
         return cls(
+            id=id,
             timestamp=timestamp,
             sender=sender,
             content=content,
@@ -633,6 +635,7 @@ class MessageParser:
                 sender = self.trim_zero_widths(sender)
                 sender = self.mark_invisible_chars(sender)
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender=sender,
                     content=content,
@@ -641,6 +644,7 @@ class MessageParser:
             elif wamatch:
                 timestamp, content = wamatch.groups()
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender="WhatsApp",
                     content=content,
@@ -930,11 +934,12 @@ class HTMLRenderer(Renderer):
         bg_color = sender_color_map.get(message.sender, '#ffffff')
 
         # Common message structure
-        message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
+        message_start = f'\n<div class="message {message_class} clearfix" data-id="{message.id}" style="background-color: {bg_color};">'
         sender_div = f'<div class="sender">{message.sender}</div>'
         content_start = '<div class="content">'
         content_end = '</div>'
-        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp}</span>'
+        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp} (#{message.id})</span>'
+
         message_end = '</div>'
 
         # Write message start to both files
