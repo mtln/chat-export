@@ -1119,7 +1119,7 @@ class ChatExport:
             for i, sender in enumerate(senders, 1):
                 print(f"{i}. {sender}")
             print("\nPlease use one of the names listed above exactly as shown.")
-            raise ValueError(f"Participant '{participant_name}' not found in chat")
+            raise ValueError(f"Participant '{participant_name}' not found in chat participants ({', '.join(senders)}). Make sure to use one of the listed names.")
         return True
 
     def parse_date_input(self, date_str):
