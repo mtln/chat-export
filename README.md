@@ -119,25 +119,25 @@ uninstall with:
 
 If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
 ```
-python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export.py').read().decode())"
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
 ```
 
 or
 
 ```
-python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export.py').read().decode())"
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
 ```
 
 Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
 
 ```
-python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
 ```
 
 or
 
 ```
-python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
 ```
 
 ## Usage
