@@ -8,7 +8,7 @@ set -e  # Exit on error
 source .venv/bin/activate
 
 # Build binary with PyInstaller
-pyinstaller --noconfirm --onefile --console --name "chat-export" --optimize "2" main.py
+pyinstaller --noconfirm --onefile --console --name "chat-export" --optimize "2" chat_export/chat_export.py
 
 # Code signing
 codesign --deep --force --verbose --options runtime --entitlements entitlements.plist --sign "Developer ID Application: Andri Kraemer (9NCXVF3Y67)" dist/chat-export
