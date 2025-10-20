@@ -79,24 +79,6 @@ class DateRange:
         raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
 
 
-@dataclass(frozen=True)
-class Chat:
-    """Container for chat metadata and messages."""
-    # Chat-level metadata
-    name: str
-    is_ios: bool
-    has_media: bool
-    attachments_in_zip: frozenset
-    message_date_format: str
-    newline_marker: str
-
-    # Chat data
-    messages: list = field(default_factory=list)
-    senders: list = field(default_factory=list)
-    date_range: Optional['DateRange'] = None
-    sender_color_map: dict = field(default_factory=dict)
-    own_name: str = ""
-
 
 @dataclass(frozen=True)
 class Message:
@@ -220,6 +202,25 @@ class Message:
         return url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
 
 
+@dataclass(frozen=True)
+class Chat:
+    """Container for chat metadata and messages."""
+    # Chat-level metadata
+    name: str
+    is_ios: bool
+    has_media: bool
+    attachments_in_zip: frozenset
+    message_date_format: str
+    newline_marker: str
+
+    # Chat data
+    messages: list[Message] = field(default_factory=list)
+    senders: list[str] = field(default_factory=list)
+    date_range: Optional['DateRange'] = None
+    sender_color_map: dict = field(default_factory=dict)
+    own_name: str = ""
+
+
 class Renderer:
     """Base renderer class for message rendering."""
 
@@ -289,7 +290,7 @@ def windows_file_picker():
 
 
 
-version = "0.9.5"
+version = "0.9.6"
 
 donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
@@ -661,11 +662,12 @@ class MessageParser:
 class HTMLRenderer(Renderer):
     """Renders messages to HTML format."""
 
-    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None):
+    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None, media_path="./media"):
         super().__init__(output_dir)
         self.has_media = has_media
         self.embed_media = embed_media
         self.zip_path = zip_path
+        self.media_path = media_path
         self.html_filename = 'chat.html'
         self.html_filename_media_linked = 'chat_media_linked.html'
         if embed_media:
@@ -874,7 +876,7 @@ class HTMLRenderer(Renderer):
 
     def render_media_element(self, attachment_name, is_media_linked=False):
         """Render a media element based on its file extension."""
-        media_path = f"./media/{attachment_name}"
+        media_path = f"{self.media_path}/{attachment_name}"
 
         if is_media_linked:
             # Always show as link in media-linked version
@@ -1381,6 +1383,7 @@ class ChatExport:
             print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
+        return chat
         
 
 
