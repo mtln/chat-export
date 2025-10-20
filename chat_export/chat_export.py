@@ -290,12 +290,12 @@ def windows_file_picker():
 
     return None
 
-UNKNOWN_LATEST = f'LATEST_{datetime.now().strftime("%Y%m%d")}'
+VERSION = "1.0.2"
 
 try:
-    __version__ = _pkg_version("chat-export") or UNKNOWN_LATEST
+    __version__ = _pkg_version("chat-export") or VERSION
 except PackageNotFoundError:
-    __version__ = UNKNOWN_LATEST
+    __version__ = VERSION
 
 donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
