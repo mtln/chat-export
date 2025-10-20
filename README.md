@@ -28,12 +28,9 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 * archive a chat before freeing up space on your phone by deleting photos, videos, and other documents that were part of the chat.
 * ask another chat participant who still has a complete version of the chat (including all pictures) on his or her phone to send you a chat export, so you can convert and archive it.
-* batch process multiple chat exports automatically using the CLI mode.
-* integrate chat conversion into backup or archival scripts.
-* process chat exports on headless servers or in automated workflows.
 
 Furthermore, the tool is [open-source](https://github.com/mtln/chat-export) and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
-And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
+And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204).
 
 ## Instructions
 
@@ -77,73 +74,71 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    For better user experience with native file picker dialogs, you can install platform-specific dependencies:
    
    **On macOS:**
-   ```
-   pip install chat-export[macos]
-   ```
+```
+pip install chat-export[macos]
+```
    
    **On Windows:**
-   ```
-   pip install chat-export[windows]
-   ```
+```
+pip install chat-export[windows]
+```
    
       
    *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
    
    After installation, you can run it from anywhere in your terminal:
 
-   ```
-   chat-export
-   ```
+```
+chat-export
+```
 
-   or
-   ```
-   chat-export --help
-   ```
+or
+```
+chat-export --help
+```
 
-   To uninstall:
-   ```
-   pip uninstall chat-export
-   ```
+To uninstall:
+```
+pip uninstall chat-export
+```
 
 #### Using uv tool instead of pip
 If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
 
-```
-uv tool install chat-export[windows]
-or
-uv tool install chat-export[macos]
+
+`uv tool install chat-export[windows]` 
+or 
+`uv tool install chat-export[macos]` 
 or just 
-uv tool install chat-export
+`uv tool install chat-export` 
+uninstall with: 
+`uv tool uninstall chat-export`
 
-uninstall with:
-uv tool uninstall chat-export
+
+### Option 3: Run Directly (No Installation)
+
+If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
 ```
 
-   ```
+or
 
-#### Using uv tool instead of pip
-   If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
+```
 
-   
-   `uv tool install chat-export[windows]` 
-   or 
-   `uv tool install chat-export[macos]` 
-   or just 
-   `uv tool install chat-export` 
-   uninstall with: 
-   `uv tool uninstall chat-export`
-   
+Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
 
-###Option 3: Run Directly (No Installation)
-   
-   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
-     ```
-     python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
-     or
-     ```
-     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
+
+or
+
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
 
 ## Usage
 
@@ -151,11 +146,12 @@ The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
 
-Just run `chat-export` in your terminal.
+Just run `chat-export` in your terminal. Use CLI parameters for special features, such as `--output-dir` or `--embed-media`.
 
 **CLI Parameters:**
 
 `-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
+`--embed-media`: Embed media files as base64 in HTML instead of linking to external files (optional)
 
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.

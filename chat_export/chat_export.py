@@ -13,6 +13,8 @@ import re
 import shutil
 import webbrowser
 from pathlib import Path, PureWindowsPath, PurePosixPath
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -79,28 +81,11 @@ class DateRange:
         raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
 
 
-@dataclass(frozen=True)
-class Chat:
-    """Container for chat metadata and messages."""
-    # Chat-level metadata
-    name: str
-    is_ios: bool
-    has_media: bool
-    attachments_in_zip: frozenset
-    message_date_format: str
-    newline_marker: str
-
-    # Chat data
-    messages: list = field(default_factory=list)
-    senders: list = field(default_factory=list)
-    date_range: Optional['DateRange'] = None
-    sender_color_map: dict = field(default_factory=dict)
-    own_name: str = ""
-
 
 @dataclass(frozen=True)
 class Message:
     """Individual message with computed properties using Chat context."""
+    id: int
     timestamp: str
     sender: str
     content: str
@@ -113,7 +98,7 @@ class Message:
     has_attachment: bool = False
 
     @classmethod
-    def create_with_context(cls, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
+    def create_with_context(cls, id: int, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
         """Create a Message with computed properties using Chat context."""
         # Compute attachment name
         attachment_name = cls._extract_attachment_name(content, chat)
@@ -129,6 +114,7 @@ class Message:
         formatted_timestamp = cls._re_render_with_day_of_week(timestamp, parsed_date)
 
         return cls(
+            id=id,
             timestamp=timestamp,
             sender=sender,
             content=content,
@@ -218,6 +204,25 @@ class Message:
         return url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
 
 
+@dataclass(frozen=True)
+class Chat:
+    """Container for chat metadata and messages."""
+    # Chat-level metadata
+    name: str
+    is_ios: bool
+    has_media: bool
+    attachments_in_zip: frozenset
+    message_date_format: str
+    newline_marker: str
+
+    # Chat data
+    messages: list[Message] = field(default_factory=list)
+    senders: list[str] = field(default_factory=list)
+    date_range: Optional['DateRange'] = None
+    sender_color_map: dict = field(default_factory=dict)
+    own_name: str = ""
+
+
 class Renderer:
     """Base renderer class for message rendering."""
 
@@ -285,11 +290,14 @@ def windows_file_picker():
 
     return None
 
+VERSION = "1.0.2"
 
+try:
+    __version__ = _pkg_version("chat-export") or VERSION
+except PackageNotFoundError:
+    __version__ = VERSION
 
-version = "0.9.5"
-
-donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
+donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
 def parse_path(path_str: str) -> Path:
     """
@@ -633,6 +641,7 @@ class MessageParser:
                 sender = self.trim_zero_widths(sender)
                 sender = self.mark_invisible_chars(sender)
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender=sender,
                     content=content,
@@ -641,6 +650,7 @@ class MessageParser:
             elif wamatch:
                 timestamp, content = wamatch.groups()
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender="WhatsApp",
                     content=content,
@@ -657,11 +667,12 @@ class MessageParser:
 class HTMLRenderer(Renderer):
     """Renders messages to HTML format."""
 
-    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None):
+    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None, media_path="./media"):
         super().__init__(output_dir)
         self.has_media = has_media
         self.embed_media = embed_media
         self.zip_path = zip_path
+        self.media_path = media_path
         self.html_filename = 'chat.html'
         self.html_filename_media_linked = 'chat_media_linked.html'
         if embed_media:
@@ -870,7 +881,7 @@ class HTMLRenderer(Renderer):
 
     def render_media_element(self, attachment_name, is_media_linked=False):
         """Render a media element based on its file extension."""
-        media_path = f"./media/{attachment_name}"
+        media_path = f"{self.media_path}/{attachment_name}"
 
         if is_media_linked:
             # Always show as link in media-linked version
@@ -930,11 +941,12 @@ class HTMLRenderer(Renderer):
         bg_color = sender_color_map.get(message.sender, '#ffffff')
 
         # Common message structure
-        message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
+        message_start = f'\n<div class="message {message_class} clearfix" data-id="{message.id}" style="background-color: {bg_color};">'
         sender_div = f'<div class="sender">{message.sender}</div>'
         content_start = '<div class="content">'
         content_end = '</div>'
-        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp}</span>'
+        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp} (#{message.id})</span>'
+
         message_end = '</div>'
 
         # Write message start to both files
@@ -1107,7 +1119,7 @@ class ChatExport:
             for i, sender in enumerate(senders, 1):
                 print(f"{i}. {sender}")
             print("\nPlease use one of the names listed above exactly as shown.")
-            raise ValueError(f"Participant '{participant_name}' not found in chat")
+            raise ValueError(f"Participant '{participant_name}' not found in chat participants ({', '.join(senders)}). Make sure to use one of the listed names.")
         return True
 
     def parse_date_input(self, date_str):
@@ -1376,6 +1388,7 @@ class ChatExport:
             print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
+        return chat
         
 
 
@@ -1431,7 +1444,7 @@ def main():
     args = parse_arguments()
     if args.non_interactive:
         # Non-interactive mode
-        print(f"chat-export v{version} - Non-interactive mode")
+        print(f"chat-export v{__version__} - Non-interactive mode")
         print("----------------------------------------")
         success = False
         try:
@@ -1456,11 +1469,11 @@ def main():
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             print(traceback.format_exc())
-            sys.exit(1)
+            sys.exit(1) 
 
     else:
         # Interactive mode (original behavior)
-        print(f"Welcome to chat-export v{version}")
+        print(f"Welcome to chat-export v{__version__}")
         print("----------------------------------------")
         print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
         success = False
