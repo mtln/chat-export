@@ -13,6 +13,8 @@ import re
 import shutil
 import webbrowser
 from pathlib import Path, PureWindowsPath, PurePosixPath
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -288,9 +290,12 @@ def windows_file_picker():
 
     return None
 
+UNKNOWN_LATEST = f'LATEST_{datetime.now().strftime("%Y%m%d")}'
 
-
-version = "0.9.6"
+try:
+    __version__ = _pkg_version("chat-export") or UNKNOWN_LATEST
+except PackageNotFoundError:
+    __version__ = UNKNOWN_LATEST
 
 donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
@@ -1439,7 +1444,7 @@ def main():
     args = parse_arguments()
     if args.non_interactive:
         # Non-interactive mode
-        print(f"chat-export v{version} - Non-interactive mode")
+        print(f"chat-export v{__version__} - Non-interactive mode")
         print("----------------------------------------")
         success = False
         try:
@@ -1464,11 +1469,11 @@ def main():
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             print(traceback.format_exc())
-            sys.exit(1)
+            sys.exit(1) 
 
     else:
         # Interactive mode (original behavior)
-        print(f"Welcome to chat-export v{version}")
+        print(f"Welcome to chat-export v{__version__}")
         print("----------------------------------------")
         print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
         success = False
