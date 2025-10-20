@@ -289,7 +289,7 @@ def windows_file_picker():
 
 version = "0.9.5"
 
-donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
+donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
 def parse_path(path_str: str) -> Path:
     """

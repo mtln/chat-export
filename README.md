@@ -33,7 +33,7 @@ Maybe you want to:
 * process chat exports on headless servers or in automated workflows.
 
 Furthermore, the tool is [open-source](https://github.com/mtln/chat-export) and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
-And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
+And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204).
 
 ## Instructions
 
