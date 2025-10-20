@@ -28,9 +28,6 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 * archive a chat before freeing up space on your phone by deleting photos, videos, and other documents that were part of the chat.
 * ask another chat participant who still has a complete version of the chat (including all pictures) on his or her phone to send you a chat export, so you can convert and archive it.
-* batch process multiple chat exports automatically using the CLI mode.
-* integrate chat conversion into backup or archival scripts.
-* process chat exports on headless servers or in automated workflows.
 
 Furthermore, the tool is [open-source](https://github.com/mtln/chat-export) and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
 And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204).
