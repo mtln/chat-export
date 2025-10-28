@@ -290,7 +290,7 @@ def windows_file_picker():
 
     return None
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 try:
     __version__ = _pkg_version("chat-export") or VERSION
