@@ -290,7 +290,7 @@ def windows_file_picker():
 
     return None
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 try:
     __version__ = _pkg_version("chat-export") or VERSION
@@ -391,11 +391,13 @@ class MessageParser:
         # Chat patterns for different platforms
         self.chat_patterns = {
             'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
+            'android': re.compile(
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
             'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
-            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*)')
+            'android': re.compile(
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
         }
 
         self.attachment_pattern_android = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
