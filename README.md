@@ -140,6 +140,12 @@ or
 python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
 ```
 
+or if you have `uv` installed, you can use `uvx`:
+
+```
+uvx chat-export
+```
+
 ## Usage
 
 The tool supports both interactive and non-interactive modes:
