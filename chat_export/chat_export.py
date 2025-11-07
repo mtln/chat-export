@@ -127,7 +127,10 @@ class Message:
 
     # Attachment patterns as class constants
     ATTACHMENT_PATTERN_ANDROID = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^>]+)>'
+    # There are two formats for attachment patterns on iOS. 
+    # The first is the default format: <attached: filename>
+    # The second is the new format: <filename eklendi> (e.g. Turkish)
+    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^ ]+)>|<(\s*[^ ]+) \w{2,20}>'
 
     @staticmethod
     def _extract_attachment_name(content: str, chat: 'Chat') -> Optional[str]:
@@ -135,7 +138,8 @@ class Message:
         if chat.is_ios and '<' in content:
             match = re.search(Message.ATTACHMENT_PATTERN_IOS, content)
             if match:
-                result = match.group(1) if match.groups() else match.group(0)
+                # pattern contains two formats. If there's no match for the first (group(1) is None), use the second (i.e. Turkish: Filename eklendi)
+                result = match.group(1) or match.group(2) if match.groups() else match.group(0)
                 if result in chat.attachments_in_zip:
                     return result
         elif not chat.is_ios and '(' in content:
@@ -290,7 +294,7 @@ def windows_file_picker():
 
     return None
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 try:
     __version__ = _pkg_version("chat-export") or VERSION
@@ -400,8 +404,6 @@ class MessageParser:
                 r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
         }
 
-        self.attachment_pattern_android = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-        self.attachment_pattern_ios = r'<\w{2,20}:\s*([^>]+)>'
         self.newline_marker = ' $NEWLINE$ '
         self.message_date_format = "%d.%m.%y"
 
