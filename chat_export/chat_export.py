@@ -1138,6 +1138,104 @@ class ChatExport:
         """Return the string from candidates most similar to target."""
         return max(candidates, key=lambda c: difflib.SequenceMatcher(None, target, c).ratio())
 
+    # Files/dirs this tool writes into a non-embed output folder.
+    _EXPORT_DIR_ENTRIES = frozenset({"chat.html", "chat_media_linked.html", "media"})
+    _IGNORABLE_DIR_ENTRIES = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
+
+    @staticmethod
+    def _is_protected_path(path: Path) -> bool:
+        """True for filesystem roots, the user's home, or the current working directory."""
+        try:
+            resolved = Path(path).resolve()
+        except OSError:
+            return True
+        if resolved == resolved.parent:
+            return True
+        for special in (Path.home(), Path.cwd()):
+            try:
+                if resolved == special.resolve():
+                    return True
+            except OSError:
+                continue
+        return False
+
+    def _is_replaceable_export_dir(self, output_dir: Path, zip_stem: str) -> bool:
+        """True only if this is a previous chat-export folder we may delete.
+
+        Requires an exact directory name match (not a suffix), refuses protected
+        paths, and refuses folders that contain anything other than our output files.
+        """
+        if self.embed_media:
+            return False
+        path = Path(output_dir)
+        if not path.exists() or not path.is_dir():
+            return False
+        if path.name != zip_stem:
+            return False
+        if self._is_protected_path(path):
+            return False
+        try:
+            entries = {p.name for p in path.iterdir()}
+        except OSError:
+            return False
+        return (entries - self._IGNORABLE_DIR_ENTRIES) <= self._EXPORT_DIR_ENTRIES
+
+    def _prepare_output_directories(self):
+        """Create output dirs. Delete a previous export only when that is clearly safe."""
+        zip_stem = Path(self.zip_path).stem
+        output_path = Path(self.output_dir)
+
+        if output_path.exists() and not self.embed_media:
+            if self._is_replaceable_export_dir(output_path, zip_stem):
+                print(f"Cleaning existing directory: {self.output_dir}")
+                shutil.rmtree(self.output_dir)
+            elif output_path.is_file() or self._is_protected_path(output_path) or any(output_path.iterdir()):
+                raise ValueError(
+                    f"Output directory '{output_path}' already exists and is not a previous "
+                    f"chat-export (expected only chat.html, chat_media_linked.html, and media/). "
+                    f"Refusing to delete it. Use --output-dir to choose another location, "
+                    f"or remove the directory manually."
+                )
+
+        os.makedirs(self.output_dir, exist_ok=True)
+        if self.has_media and not self.embed_media:
+            os.makedirs(self.media_dir, exist_ok=True)
+
+    def _read_chat_from_zip(self) -> str:
+        """Validate the ZIP and read the chat text. Does not touch the output directory."""
+        zip_base_name = Path(self.zip_path).stem
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
+                if not chat_file_candidates:
+                    raise FileNotFoundError("No .txt file found in the ZIP archive. Not a valid WhatsApp export zip.")
+                if '_chat.txt' in chat_file_candidates:
+                    self.is_ios = True
+                    chat_file = '_chat.txt'
+                else:
+                    self.is_ios = False
+                    chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
+
+                for file in zip_ref.namelist():
+                    if file != chat_file:
+                        self.attachments_in_zip.add(file)
+                        self.has_media = True
+
+                if chat_file not in zip_ref.namelist():
+                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+
+                with zip_ref.open(chat_file) as f:
+                    chat_content = f.read().decode('utf-8')
+        except zipfile.BadZipFile:
+            raise ValueError(f"The file {self.zip_path} is not a valid ZIP file.")
+
+        kind = 'iOS' if self.is_ios else 'Android'
+        if self.has_media:
+            print(f"ZIP file is an {kind} export with media/attachments, '{chat_file}' is the chat text file.")
+        else:
+            print(f"ZIP file is an {kind} export without media/attachments, '{chat_file}' is the chat text file.")
+        return chat_content
+
     def process_chat(self):
         # Ask for optional date range
         print("\nOptional: Enter date range to filter messages")
@@ -1166,55 +1264,7 @@ class ChatExport:
                     break
         
 
-        # Get the base name of the zip file without extension
-        zip_base_name = Path(self.zip_path).stem
-
-        # safety: clean only if it's a subfolder with zip_base_name
-        if os.path.exists(self.output_dir) and str(self.output_dir).endswith(zip_base_name):
-            print(f"Cleaning existing directory: {self.output_dir}")
-            shutil.rmtree(self.output_dir)
-
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        # if not embed_media, create media directory
-        if not self.embed_media:
-            # Create fresh output directories
-            os.makedirs(self.media_dir, exist_ok=True)
-        
-
-        
-
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
-            if not chat_file_candidates:
-                raise FileNotFoundError("No .txt file found in the ZIP archive. Not a valid WhatsApp export zip.")
-            if '_chat.txt' in chat_file_candidates:
-                self.is_ios = True
-                chat_file = '_chat.txt'
-            else:
-                self.is_ios = False
-                chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
-
-            # Extract media files
-            for file in zip_ref.namelist():
-                if file != chat_file:
-                    self.attachments_in_zip.add(file)
-                    self.has_media = True
-            
-            # If still not found, raise error
-            if chat_file not in zip_ref.namelist():
-                raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
-
-            with zip_ref.open(chat_file) as f:
-                chat_content = f.read().decode('utf-8')
-        if self.has_media:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
-        else:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            # delete if exists
-            if os.path.exists(self.media_dir): 
-                shutil.rmtree(self.media_dir)
-        # Setup modular components now that we know the platform and media status
+        chat_content = self._read_chat_from_zip()
         self.setup_modular_components()
 
         # Create date range for filtering
@@ -1253,6 +1303,8 @@ class ChatExport:
                 raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(chat.messages)} messages.")
 
+        self._prepare_output_directories()
+
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
 
@@ -1289,59 +1341,7 @@ class ChatExport:
 
         processing_start_time = time.time()
 
-        # Get the base name of the zip file without extension
-        zip_base_name = Path(self.zip_path).stem
-
-        # safety: clean only if it's a subfolder with zip_base_name
-        if os.path.exists(self.output_dir) and str(self.output_dir).endswith(zip_base_name):
-            print(f"Cleaning existing directory: {self.output_dir}")
-            shutil.rmtree(self.output_dir)
-        
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        if not self.embed_media:
-            # Create fresh output directories
-            os.makedirs(self.media_dir, exist_ok=True)
-
-        # Validate that it's a proper ZIP file
-        try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-                chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
-                if not chat_file_candidates:
-                    raise FileNotFoundError("No .txt file found in the ZIP archive. Not a valid WhatsApp export zip.")
-                if '_chat.txt' in chat_file_candidates:
-                    self.is_ios = True
-                    chat_file = '_chat.txt'
-                else:
-                    self.is_ios = False
-                    chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
-
-                # Extract media files
-                for file in zip_ref.namelist():
-                    if file != chat_file:
-                        self.attachments_in_zip.add(file)
-                        self.has_media = True
-
-                # If still not found, raise error
-                if chat_file not in zip_ref.namelist():
-                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
-
-                with zip_ref.open(chat_file) as f:
-                    chat_content = f.read().decode('utf-8')
-
-        except zipfile.BadZipFile:
-            raise ValueError(f"The file {self.zip_path} is not a valid ZIP file.")
-
-        if self.has_media:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
-        else:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            # delete if exists
-            if os.path.exists(self.media_dir):
-                shutil.rmtree(self.media_dir)
-    
-
-        # Setup modular components now that we know the platform and media status
+        chat_content = self._read_chat_from_zip()
         self.setup_modular_components()
 
         # Create date range for filtering
@@ -1365,6 +1365,8 @@ class ChatExport:
             if filtered_count == 0:
                 raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(chat.messages)} messages.")
+
+        self._prepare_output_directories()
 
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
