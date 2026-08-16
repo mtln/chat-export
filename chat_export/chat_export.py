@@ -78,7 +78,7 @@ class DateRange:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
                 continue
-        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, or DD/MM/YY")
 
 
 
@@ -358,11 +358,11 @@ Examples:
 
     parser.add_argument('--from-date',
                        type=str,
-                       help='Start date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+                       help='Start date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY)')
 
     parser.add_argument('--until-date',
                        type=str,
-                       help='End date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+                       help='End date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY)')
 
     parser.add_argument('-o', '--output-dir',
                        type=str,
@@ -393,15 +393,17 @@ class MessageParser:
         self.attachments_in_zip = attachments_in_zip or set()
 
         # Chat patterns for different platforms
+        # Time separator can be ':' (most locales, e.g. 18:00) or '.' (Indonesian
+        # WhatsApp exports, e.g. 18.00), so match either.
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*?): (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
         }
 
         self.newline_marker = ' $NEWLINE$ '
@@ -411,7 +413,9 @@ class MessageParser:
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
             "%d.%m.%y",  # German format: DD.MM.YY
-            "%m/%d/%y"   # US format: MM/DD/YY
+            "%m/%d/%y",  # US format: MM/DD/YY
+            "%d/%m/%Y",  # Indonesian format: DD/MM/YYYY
+            "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
 
     def get_date_format(self, chat_content):
@@ -428,7 +432,10 @@ class MessageParser:
             first_line_content = chat_content.split('\n')[0]
             raise ValueError(f"Could not determine the date format of the chat: {first_line_content}")
 
-        first_line_date = first_line.split(',')[0].replace('[', '')
+        # Use the same splitting logic as elsewhere (comma+space OR plain space)
+        # instead of a plain ',' split, since some locales (e.g. Indonesian
+        # exports: '30/08/25 18.00 - ...') have no comma between date and time.
+        first_line_date = re.split(', | ', first_line.replace('[', ''))[0]
         # find first non-digit in the date string
         for char in first_line_date:
             if not char.isdigit():
@@ -1107,7 +1114,9 @@ class ChatExport:
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
             "%d.%m.%y",  # German format: DD.MM.YY
-            "%m/%d/%y"   # US format: MM/DD/YY
+            "%m/%d/%y",  # US format: MM/DD/YY
+            "%d/%m/%Y",  # Indonesian format: DD/MM/YYYY
+            "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
 
         # Initialize modular components (will be set up later after platform detection)
