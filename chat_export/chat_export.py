@@ -727,10 +727,6 @@ class HTMLRenderer(Renderer):
             float: right;
             margin-left: 35%;
         }
-        .message.received {
-            float: left;
-            margin-right: 35%;
-        }
         .message.whatsapp {
             max-width: 100%
         }
@@ -792,6 +788,12 @@ class HTMLRenderer(Renderer):
         a:hover {
             text-decoration: underline;
         }
+        @media(width > 800px) {
+            .message.received {
+                float: left;
+                margin-right: 35%;
+            }
+        }
         @media print {
             body {
                 background-color: #ffffff;
@@ -805,6 +807,7 @@ class HTMLRenderer(Renderer):
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{safe_name}</title>
     <style>
         {self.get_css_styles()}
