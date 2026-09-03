@@ -391,6 +391,14 @@ Examples:
 class MessageParser:
     """Handles parsing of WhatsApp chat content into Message objects."""
 
+    ARABIC_TRANSLATION_TABLE = str.maketrans({
+        "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+        "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+        "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+        "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+        "،": ",",
+    })
+
     def __init__(self, is_ios=False, has_media=False, attachments_in_zip=None):
         self.is_ios = is_ios
         self.has_media = has_media
@@ -400,14 +408,14 @@ class MessageParser:
         # Time separator can be ':' (most locales, e.g. 18:00) or '.' (Indonesian
         # WhatsApp exports, e.g. 18.00), so match either.
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*?): (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*?): (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*)')
         }
 
         self.newline_marker = ' $NEWLINE$ '
@@ -422,8 +430,16 @@ class MessageParser:
             "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
 
+    @classmethod
+    def normalize_locale_markers(cls, text: str) -> str:
+        """Normalize locale markers that interfere with WhatsApp line parsing."""
+        bidi_controls = "\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069"
+        text = text.translate(cls.ARABIC_TRANSLATION_TABLE)
+        return text.translate({ord(ch): None for ch in bidi_controls})
+
     def get_date_format(self, chat_content):
         """Determine the date format used in the chat."""
+        chat_content = self.normalize_locale_markers(chat_content)
         chat_content = chat_content.replace('‎','')
         first_line = None
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
@@ -526,6 +542,7 @@ class MessageParser:
 
     def get_senders(self, chat_content):
         """Extract all unique senders from chat content."""
+        chat_content = self.normalize_locale_markers(chat_content)
         senders = set()
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
@@ -587,6 +604,8 @@ class MessageParser:
 
     def parse_messages(self, chat_content, chat_name="", date_range=None, own_name=""):
         """Parse chat content into a Chat object."""
+        chat_content = self.normalize_locale_markers(chat_content)
+
         # Set the message date format
         self.message_date_format = self.get_date_format(chat_content)
 
