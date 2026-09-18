@@ -612,6 +612,20 @@ class MessageParser:
 
         return color_map
 
+    def _join_message_lines(self, lines):
+        """Join the header line of a message with its continuation lines.
+
+        Trailing blank lines are dropped: WhatsApp trims messages on send, so
+        they never end with an empty line. Such lines come from the export
+        itself, typically the newline that terminates the chat file, and would
+        otherwise render as a spurious line break. Blank lines inside a
+        message are kept.
+        """
+        end = len(lines)
+        while end > 1 and not lines[end - 1].strip():
+            end -= 1
+        return lines[0] + ''.join(self.newline_marker + line for line in lines[1:end])
+
     def parse_messages(self, chat_content, chat_name="", date_range=None, own_name=""):
         """Parse chat content into a Chat object."""
         chat_content = self.normalize_locale_markers(chat_content)
@@ -649,7 +663,7 @@ class MessageParser:
             if match or wamatch:
                 total_count += 1
                 if current_line:
-                    processed_content.append(''.join(current_line))
+                    processed_content.append(self._join_message_lines(current_line))
 
                 # Only add messages within date range
                 if match:
@@ -667,11 +681,11 @@ class MessageParser:
                 current_line = [line]
             else:
                 if current_line:
-                    current_line.append(self.newline_marker + line)
+                    current_line.append(line)
 
         # Don't forget to add the last message
         if current_line:
-            processed_content.append(''.join(current_line))
+            processed_content.append(self._join_message_lines(current_line))
 
         # Parse each processed line into Message objects
         messages = []
