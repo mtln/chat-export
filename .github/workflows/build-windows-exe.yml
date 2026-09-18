@@ -1,0 +1,35 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix-arabic-whatsapp-export
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[windows]" pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --name chat-export chat_export/chat_export.py
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-export-windows-exe
+          path: dist/chat-export.exe
