@@ -247,7 +247,7 @@ chat-export -n -z "chat.zip" -p "Your Name" --embed-media
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. 
 
-chat-export has been tested with many languages and regional settings.
+chat-export has been tested with many languages and regional settings, including right-to-left exports such as Arabic (Arabic digits, the Arabic comma and the ص/م time markers are handled).
 
 If it doesn't work for your language, please let me know.
 
@@ -256,6 +256,16 @@ If it doesn't work for your language, please let me know.
 * Windows
 * Mac
 * Linux
+
+## Development
+
+Tests live in the `tests/` directory and use Python's built-in `unittest`, so no extra packages are needed. Run them from the repository root:
+
+```bash
+python -m unittest discover -s tests -t . -v
+```
+
+Any file named `tests/test_*.py` is picked up automatically. The same command runs on GitHub Actions for every push to `main` and every pull request (see `.github/workflows/tests.yml`).
 
 ## Limitations
 There is information in chats, that is not included in the export.zip created by WhatsApp. As a consequence, this information cannot be rendered by chat-export.

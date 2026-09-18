@@ -298,7 +298,7 @@ def windows_file_picker():
 
     return None
 
-VERSION = "1.0.7"
+VERSION = "1.1.0"
 
 try:
     __version__ = _pkg_version("chat-export") or VERSION
@@ -391,6 +391,25 @@ Examples:
 class MessageParser:
     """Handles parsing of WhatsApp chat content into Message objects."""
 
+    # Arabic-Indic and Eastern Arabic-Indic digits plus the Arabic comma, mapped to
+    # their ASCII equivalents so timestamps can be matched and parsed with strptime.
+    ARABIC_TRANSLATION_TABLE = str.maketrans({
+        "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+        "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+        "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+        "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+        "،": ",",
+    })
+
+    # Unicode bidirectional control characters (LRM, RLM, isolates, embeddings,
+    # overrides). WhatsApp inserts these around timestamps and names in RTL
+    # exports, which breaks line matching, so they are removed from the whole
+    # chat text before parsing.
+    BIDI_CONTROL_TABLE = {
+        ord(ch): None
+        for ch in "\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069"
+    }
+
     def __init__(self, is_ios=False, has_media=False, attachments_in_zip=None):
         self.is_ios = is_ios
         self.has_media = has_media
@@ -400,14 +419,14 @@ class MessageParser:
         # Time separator can be ':' (most locales, e.g. 18:00) or '.' (Indonesian
         # WhatsApp exports, e.g. 18.00), so match either.
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*?): (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*?): (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*)'),
             'android': re.compile(
-                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?) - (.*)')
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*)')
         }
 
         self.newline_marker = ' $NEWLINE$ '
@@ -422,9 +441,21 @@ class MessageParser:
             "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
 
+    @classmethod
+    def normalize_locale_markers(cls, text: str) -> str:
+        """Normalize locale markers that interfere with WhatsApp line parsing.
+
+        Converts Arabic digits and the Arabic comma to ASCII and removes all
+        bidirectional control characters. This is applied to the whole chat
+        text (timestamps, sender names and message bodies alike) and is
+        idempotent, so it is safe to call on already normalized content.
+        """
+        text = text.translate(cls.ARABIC_TRANSLATION_TABLE)
+        return text.translate(cls.BIDI_CONTROL_TABLE)
+
     def get_date_format(self, chat_content):
         """Determine the date format used in the chat."""
-        chat_content = chat_content.replace('‎','')
+        chat_content = self.normalize_locale_markers(chat_content)
         first_line = None
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
@@ -491,7 +522,9 @@ class MessageParser:
         """Trim harmless zero-width characters from the start and end of a string.
 
         Safe to strip: ZWSP, ZWNJ, ZWJ, BOM.
-        Does NOT strip directional controls like LRM, RLM, FSI, PDI, etc.
+        Directional controls (LRM, RLM, isolates, embeddings, overrides) never
+        reach this point: normalize_locale_markers removes them from the whole
+        chat text before parsing.
         """
 
         SAFE_ZERO_WIDTHS = "\u200B\u200C\u200D\uFEFF"  # ZWSP, ZWNJ, ZWJ, BOM
@@ -500,32 +533,26 @@ class MessageParser:
 
     @staticmethod
     def mark_invisible_chars(text: str) -> str:
-        """Replace zero-width and directional Unicode control chars with ASCII markers."""
+        """Replace zero-width Unicode characters inside a sender name with ASCII markers.
+
+        This makes otherwise invisible characters visible in the participant
+        list so users can match names exactly. Directional controls are not
+        handled here because normalize_locale_markers removes them before
+        parsing.
+        """
 
         replacements = {
             "\u200B": ":ZWSP:",   # Zero Width Space
             "\u200C": ":ZWNJ:",   # Zero Width Non-Joiner
             "\u200D": ":ZWJ:",    # Zero Width Joiner
             "\uFEFF": ":BOM:",    # Zero Width No-Break Space / BOM
-
-            "\u200E": ":LRM:",    # Left-to-Right Mark
-            "\u200F": ":RLM:",    # Right-to-Left Mark
-            "\u2066": ":LRI:",    # Left-to-Right Isolate
-            "\u2067": ":RLI:",    # Right-to-Left Isolate
-            "\u2068": ":FSI:",    # First Strong Isolate
-            "\u2069": ":PDI:",    # Pop Directional Isolate
-
-            "\u202A": ":LRE:",    # Left-to-Right Embedding
-            "\u202B": ":RLE:",    # Right-to-Left Embedding
-            "\u202C": ":PDF:",    # Pop Directional Formatting
-            "\u202D": ":LRO:",    # Left-to-Right Override
-            "\u202E": ":RLO:",    # Right-to-Left Override
         }
 
         return "".join(replacements.get(ch, ch) for ch in text)
 
     def get_senders(self, chat_content):
         """Extract all unique senders from chat content."""
+        chat_content = self.normalize_locale_markers(chat_content)
         senders = set()
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
@@ -585,8 +612,24 @@ class MessageParser:
 
         return color_map
 
+    def _join_message_lines(self, lines):
+        """Join the header line of a message with its continuation lines.
+
+        Trailing blank lines are dropped: WhatsApp trims messages on send, so
+        they never end with an empty line. Such lines come from the export
+        itself, typically the newline that terminates the chat file, and would
+        otherwise render as a spurious line break. Blank lines inside a
+        message are kept.
+        """
+        end = len(lines)
+        while end > 1 and not lines[end - 1].strip():
+            end -= 1
+        return lines[0] + ''.join(self.newline_marker + line for line in lines[1:end])
+
     def parse_messages(self, chat_content, chat_name="", date_range=None, own_name=""):
         """Parse chat content into a Chat object."""
+        chat_content = self.normalize_locale_markers(chat_content)
+
         # Set the message date format
         self.message_date_format = self.get_date_format(chat_content)
 
@@ -612,8 +655,6 @@ class MessageParser:
         total_count = 0
 
         for line in chat_content.split('\n'):
-            # remove the Left-to-right_marks
-            line = line.replace('‎','')
             pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
             wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
             match = pattern.match(line)
@@ -622,7 +663,7 @@ class MessageParser:
             if match or wamatch:
                 total_count += 1
                 if current_line:
-                    processed_content.append(''.join(current_line))
+                    processed_content.append(self._join_message_lines(current_line))
 
                 # Only add messages within date range
                 if match:
@@ -640,11 +681,11 @@ class MessageParser:
                 current_line = [line]
             else:
                 if current_line:
-                    current_line.append(self.newline_marker + line)
+                    current_line.append(line)
 
         # Don't forget to add the last message
         if current_line:
-            processed_content.append(''.join(current_line))
+            processed_content.append(self._join_message_lines(current_line))
 
         # Parse each processed line into Message objects
         messages = []
