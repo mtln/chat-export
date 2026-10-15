@@ -145,6 +145,15 @@ class AndroidAttachmentTest(unittest.TestCase):
         self.assertFalse(message.has_attachment)
         self.assertEqual(message.cleaned_content, "Meet at the cafe (the one near the park)")
 
+    def test_document_filename_with_spaces(self):
+        filename = "01-My Doc with spaces.pdf"
+        chat = make_chat(is_ios=False, has_media=True, attachments_in_zip=frozenset({filename}))
+
+        message = make_message(chat=chat, content=f"{filename} (file attached)")
+
+        self.assertEqual(message.attachment_name, filename)
+        self.assertEqual(message.cleaned_content, "")
+
     def test_ios_marker_is_ignored_for_android_chat(self):
         message = make_message(chat=self.chat, content="<attached: agenda.pdf>")
 
@@ -175,6 +184,28 @@ class IOSAttachmentTest(unittest.TestCase):
         message = make_message(chat=self.chat, content=f"<{self.photo} eklendi>")
 
         self.assertEqual(message.attachment_name, self.photo)
+        self.assertEqual(message.cleaned_content, "")
+
+    def test_document_filename_with_spaces(self):
+        filename = "01-My Doc with spaces.pdf"
+        chat = make_chat(is_ios=True, has_media=True, attachments_in_zip=frozenset({filename}))
+        content = f"01-My Doc with spaces.pdf • 4 pages <attached: {filename}>"
+
+        message = make_message(chat=chat, content=content)
+
+        self.assertTrue(message.has_attachment)
+        self.assertEqual(message.attachment_name, filename)
+        self.assertIn("01-My Doc with spaces.pdf • 4 pages", message.cleaned_content)
+        self.assertNotIn("attached:", message.cleaned_content)
+        self.assertNotIn("[attached:", message.cleaned_content)
+
+    def test_turkish_suffix_marker_with_spaces(self):
+        filename = "01-My Doc with spaces.pdf"
+        chat = make_chat(is_ios=True, has_media=True, attachments_in_zip=frozenset({filename}))
+
+        message = make_message(chat=chat, content=f"<{filename} eklendi>")
+
+        self.assertEqual(message.attachment_name, filename)
         self.assertEqual(message.cleaned_content, "")
 
     def test_attachment_missing_from_zip_is_shown_in_brackets(self):

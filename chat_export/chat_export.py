@@ -15,6 +15,7 @@ import re
 import shutil
 import webbrowser
 from pathlib import Path, PureWindowsPath, PurePosixPath
+from urllib.parse import quote
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 
 # Attempt to import PyObjC modules for macOS file dialog support
@@ -131,10 +132,12 @@ class Message:
 
     # Attachment patterns as class constants
     ATTACHMENT_PATTERN_ANDROID = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-    # There are two formats for attachment patterns on iOS. 
+    # There are two formats for attachment patterns on iOS.
     # The first is the default format: <attached: filename>
     # The second is the new format: <filename eklendi> (e.g. Turkish)
-    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^ ]+)>|<\s*([^ ]+) \w{2,20}>'
+    # Filenames may contain spaces (typical for documents such as "01-My Doc with spaces.pdf").
+    # The label is a single word; the filename runs up to the closing '>'.
+    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^>\r\n]+)>|<\s*([^>\r\n]+?\.[A-Za-z0-9]{1,8})\s+\w{2,20}>'
 
     @staticmethod
     def _extract_attachment_name(content: str, chat: 'Chat') -> Optional[str]:
@@ -144,12 +147,14 @@ class Message:
             if match:
                 # pattern contains two formats. If there's no match for the first (group(1) is None), use the second (i.e. Turkish: Filename eklendi)
                 result = match.group(1) or match.group(2) if match.groups() else match.group(0)
+                result = result.strip()
                 if result in chat.attachments_in_zip:
                     return result
         elif not chat.is_ios and '(' in content:
             match = re.search(Message.ATTACHMENT_PATTERN_ANDROID, content)
             if match:
                 result = match.group(1) if match.groups() else match.group(0)
+                result = result.strip()
                 if result in chat.attachments_in_zip:
                     return result
         return None
@@ -942,9 +947,13 @@ class HTMLRenderer(Renderer):
             print(f"Warning: Could not encode {attachment_name} to base64: {e}")
             return None
 
+    def media_file_url(self, attachment_name):
+        """Build a media URL, percent-encoding spaces and other reserved characters."""
+        return f"{self.media_path}/{quote(attachment_name, safe='/')}"
+
     def render_media_element(self, attachment_name, is_media_linked=False):
         """Render a media element based on its file extension."""
-        media_path = f"{self.media_path}/{attachment_name}"
+        media_path = self.media_file_url(attachment_name)
 
         if is_media_linked:
             # Always show as link in media-linked version
