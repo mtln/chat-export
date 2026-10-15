@@ -1,7 +1,10 @@
 import argparse
+import base64
 import difflib
+import html as html_module
 import os
 import sys
+import tempfile
 import time
 import traceback
 import zipfile
@@ -12,6 +15,9 @@ import re
 import shutil
 import webbrowser
 from pathlib import Path, PureWindowsPath, PurePosixPath
+from urllib.parse import quote
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
 # Attempt to import PyObjC modules for macOS file dialog support
 # for this to work, you need to pip install PyObjC
 if sys.platform == 'darwin':
@@ -46,6 +52,8 @@ class DateRange:
 
     def contains(self, msg_date):
         """Check if a date falls within this range."""
+        if msg_date is None:
+            return True  # include messages with unparseable dates
         if self.from_date and msg_date < self.from_date:
             return False
         if self.until_date and msg_date > self.until_date:
@@ -75,31 +83,14 @@ class DateRange:
                 return datetime.strptime(date_str, fmt).date()
             except ValueError:
                 continue
-        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, or MM/DD/YY")
+        raise ValueError("Invalid date format. Please use DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, or DD/MM/YY")
 
-
-@dataclass(frozen=True)
-class Chat:
-    """Container for chat metadata and messages."""
-    # Chat-level metadata
-    name: str
-    is_ios: bool
-    has_media: bool
-    attachments_in_zip: frozenset
-    message_date_format: str
-    newline_marker: str
-
-    # Chat data
-    messages: list = field(default_factory=list)
-    senders: list = field(default_factory=list)
-    date_range: Optional['DateRange'] = None
-    sender_color_map: dict = field(default_factory=dict)
-    own_name: str = ""
 
 
 @dataclass(frozen=True)
 class Message:
     """Individual message with computed properties using Chat context."""
+    id: int
     timestamp: str
     sender: str
     content: str
@@ -112,7 +103,7 @@ class Message:
     has_attachment: bool = False
 
     @classmethod
-    def create_with_context(cls, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
+    def create_with_context(cls, id: int, timestamp: str, sender: str, content: str, chat: 'Chat') -> 'Message':
         """Create a Message with computed properties using Chat context."""
         # Compute attachment name
         attachment_name = cls._extract_attachment_name(content, chat)
@@ -128,6 +119,7 @@ class Message:
         formatted_timestamp = cls._re_render_with_day_of_week(timestamp, parsed_date)
 
         return cls(
+            id=id,
             timestamp=timestamp,
             sender=sender,
             content=content,
@@ -140,7 +132,12 @@ class Message:
 
     # Attachment patterns as class constants
     ATTACHMENT_PATTERN_ANDROID = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^>]+)>'
+    # There are two formats for attachment patterns on iOS.
+    # The first is the default format: <attached: filename>
+    # The second is the new format: <filename eklendi> (e.g. Turkish)
+    # Filenames may contain spaces (typical for documents such as "01-My Doc with spaces.pdf").
+    # The label is a single word; the filename runs up to the closing '>'.
+    ATTACHMENT_PATTERN_IOS = r'<\w{2,20}:\s*([^>\r\n]+)>|<\s*([^>\r\n]+?\.[A-Za-z0-9]{1,8})\s+\w{2,20}>'
 
     @staticmethod
     def _extract_attachment_name(content: str, chat: 'Chat') -> Optional[str]:
@@ -148,13 +145,16 @@ class Message:
         if chat.is_ios and '<' in content:
             match = re.search(Message.ATTACHMENT_PATTERN_IOS, content)
             if match:
-                result = match.group(1) if match.groups() else match.group(0)
+                # pattern contains two formats. If there's no match for the first (group(1) is None), use the second (i.e. Turkish: Filename eklendi)
+                result = match.group(1) or match.group(2) if match.groups() else match.group(0)
+                result = result.strip()
                 if result in chat.attachments_in_zip:
                     return result
         elif not chat.is_ios and '(' in content:
             match = re.search(Message.ATTACHMENT_PATTERN_ANDROID, content)
             if match:
                 result = match.group(1) if match.groups() else match.group(0)
+                result = result.strip()
                 if result in chat.attachments_in_zip:
                     return result
         return None
@@ -171,8 +171,8 @@ class Message:
             cleaned_content = re.sub(Message.ATTACHMENT_PATTERN_ANDROID, '', cleaned_content)
 
         if cleaned_content != content:
-            # Clean up any remaining parentheses and extra whitespace
-            cleaned_content = re.sub(r'\s*\([^)]+\)\s*$', '', cleaned_content)
+            # Clean up any remaining file-size annotations like "(3 KB)" or "(1,2 MB)"
+            cleaned_content = re.sub(r'\s*\(\d[\d,.]*\s*.{1,10}\)\s*$', '', cleaned_content)
 
         # Make '<medien ausgeschlossen>' visible in html
         cleaned_content = cleaned_content.replace('<', '[').replace('>', ']')
@@ -215,6 +215,25 @@ class Message:
         """Wrap URLs in anchor tags."""
         url_pattern = re.compile(r'(https?://[^\s]+)')
         return url_pattern.sub(r'<a href="\1" target="_blank">\1</a>', text)
+
+
+@dataclass
+class Chat:
+    """Container for chat metadata and messages."""
+    # Chat-level metadata
+    name: str
+    is_ios: bool
+    has_media: bool
+    attachments_in_zip: frozenset
+    message_date_format: str
+    newline_marker: str
+
+    # Chat data
+    messages: list[Message] = field(default_factory=list)
+    senders: list[str] = field(default_factory=list)
+    date_range: Optional['DateRange'] = None
+    sender_color_map: dict = field(default_factory=dict)
+    own_name: str = ""
 
 
 class Renderer:
@@ -284,11 +303,14 @@ def windows_file_picker():
 
     return None
 
+VERSION = "1.1.1"
 
+try:
+    __version__ = _pkg_version("chat-export") or VERSION
+except PackageNotFoundError:
+    __version__ = VERSION
 
-version = "0.9.2"
-
-donate_link = "https://donate.stripe.com/3csfZLaIj5JE6dO4gg"
+donate_link = "https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204"
 
 def parse_path(path_str: str) -> Path:
     """
@@ -345,15 +367,19 @@ Examples:
 
     parser.add_argument('--from-date',
                        type=str,
-                       help='Start date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+                       help='Start date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY)')
 
     parser.add_argument('--until-date',
                        type=str,
-                       help='End date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)')
+                       help='End date for filtering messages (optional, formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY)')
 
     parser.add_argument('-o', '--output-dir',
                        type=str,
                        help='Base directory where the ZIP-derived output folder will be created (default: current working directory)')
+
+    parser.add_argument('--embed-media',
+                       action='store_true',
+                       help='Embed media files as base64 in HTML instead of linking to external files')
 
     args = parser.parse_args()
 
@@ -370,23 +396,44 @@ Examples:
 class MessageParser:
     """Handles parsing of WhatsApp chat content into Message objects."""
 
+    # Arabic-Indic and Eastern Arabic-Indic digits plus the Arabic comma, mapped to
+    # their ASCII equivalents so timestamps can be matched and parsed with strptime.
+    ARABIC_TRANSLATION_TABLE = str.maketrans({
+        "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+        "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+        "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+        "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+        "،": ",",
+    })
+
+    # Unicode bidirectional control characters (LRM, RLM, isolates, embeddings,
+    # overrides). WhatsApp inserts these around timestamps and names in RTL
+    # exports, which breaks line matching, so they are removed from the whole
+    # chat text before parsing.
+    BIDI_CONTROL_TABLE = {
+        ord(ch): None
+        for ch in "\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069"
+    }
+
     def __init__(self, is_ios=False, has_media=False, attachments_in_zip=None):
         self.is_ios = is_ios
         self.has_media = has_media
         self.attachments_in_zip = attachments_in_zip or set()
 
         # Chat patterns for different platforms
+        # Time separator can be ':' (most locales, e.g. 18:00) or '.' (Indonesian
+        # WhatsApp exports, e.g. 18.00), so match either.
         self.chat_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*?): (.*)'),
-            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*?): (.*)')
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*?): (.*)'),
+            'android': re.compile(
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*?): (.*)')
         }
         self.whatsapp_patterns = {
-            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4}, \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\] (.*)'),
-            'android': re.compile(r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?) - (.*)')
+            'ios': re.compile(r'\[(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp][Mm]|[صم]))?)\] (.*)'),
+            'android': re.compile(
+                r'(\d{1,4}.\d{1,2}.\d{2,4},? \d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s*(?:[AaPp]\.?\s*[Mm]\.?|[صم]))?) - (.*)')
         }
 
-        self.attachment_pattern_android = r'(.+?\.[a-zA-Z0-9]{0,4}) \(.{1,20} .{1,20}\)'
-        self.attachment_pattern_ios = r'<\w{2,20}:\s*([^>]+)>'
         self.newline_marker = ' $NEWLINE$ '
         self.message_date_format = "%d.%m.%y"
 
@@ -394,12 +441,26 @@ class MessageParser:
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
             "%d.%m.%y",  # German format: DD.MM.YY
-            "%m/%d/%y"   # US format: MM/DD/YY
+            "%m/%d/%y",  # US format: MM/DD/YY
+            "%d/%m/%Y",  # Indonesian format: DD/MM/YYYY
+            "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
+
+    @classmethod
+    def normalize_locale_markers(cls, text: str) -> str:
+        """Normalize locale markers that interfere with WhatsApp line parsing.
+
+        Converts Arabic digits and the Arabic comma to ASCII and removes all
+        bidirectional control characters. This is applied to the whole chat
+        text (timestamps, sender names and message bodies alike) and is
+        idempotent, so it is safe to call on already normalized content.
+        """
+        text = text.translate(cls.ARABIC_TRANSLATION_TABLE)
+        return text.translate(cls.BIDI_CONTROL_TABLE)
 
     def get_date_format(self, chat_content):
         """Determine the date format used in the chat."""
-        chat_content = chat_content.replace('‎','')
+        chat_content = self.normalize_locale_markers(chat_content)
         first_line = None
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
@@ -411,12 +472,18 @@ class MessageParser:
             first_line_content = chat_content.split('\n')[0]
             raise ValueError(f"Could not determine the date format of the chat: {first_line_content}")
 
-        first_line_date = first_line.split(',')[0].replace('[', '')
+        # Use the same splitting logic as elsewhere (comma+space OR plain space)
+        # instead of a plain ',' split, since some locales (e.g. Indonesian
+        # exports: '30/08/25 18.00 - ...') have no comma between date and time.
+        first_line_date = re.split(', | ', first_line.replace('[', ''))[0]
         # find first non-digit in the date string
+        deliminator = None
         for char in first_line_date:
             if not char.isdigit():
                 deliminator = char
                 break
+        if deliminator is None:
+            raise ValueError(f"Could not find a date separator in '{first_line_date}'. Not a valid WhatsApp date format.")
 
         # year might be in position 0 or 2, i.e. 2018-12-22 vs 22.12.18 vs 22.12.2018
         if len(first_line_date.split(deliminator)[0]) == 4:
@@ -455,14 +522,50 @@ class MessageParser:
         except (ValueError, AttributeError):
             return None
 
+    @staticmethod
+    def trim_zero_widths(text: str) -> str:
+        """Trim harmless zero-width characters from the start and end of a string.
+
+        Safe to strip: ZWSP, ZWNJ, ZWJ, BOM.
+        Directional controls (LRM, RLM, isolates, embeddings, overrides) never
+        reach this point: normalize_locale_markers removes them from the whole
+        chat text before parsing.
+        """
+
+        SAFE_ZERO_WIDTHS = "\u200B\u200C\u200D\uFEFF"  # ZWSP, ZWNJ, ZWJ, BOM
+        return text.strip(SAFE_ZERO_WIDTHS).strip()
+
+
+    @staticmethod
+    def mark_invisible_chars(text: str) -> str:
+        """Replace zero-width Unicode characters inside a sender name with ASCII markers.
+
+        This makes otherwise invisible characters visible in the participant
+        list so users can match names exactly. Directional controls are not
+        handled here because normalize_locale_markers removes them before
+        parsing.
+        """
+
+        replacements = {
+            "\u200B": ":ZWSP:",   # Zero Width Space
+            "\u200C": ":ZWNJ:",   # Zero Width Non-Joiner
+            "\u200D": ":ZWJ:",    # Zero Width Joiner
+            "\uFEFF": ":BOM:",    # Zero Width No-Break Space / BOM
+        }
+
+        return "".join(replacements.get(ch, ch) for ch in text)
+
     def get_senders(self, chat_content):
         """Extract all unique senders from chat content."""
+        chat_content = self.normalize_locale_markers(chat_content)
         senders = set()
         pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
         for line in chat_content.split('\n'):
             match = pattern.match(line)
             if match:
                 sender = match.group(2)
+                sender = self.trim_zero_widths(sender)
+                sender = self.mark_invisible_chars(sender)
                 senders.add(sender)
         return sorted(list(senders))
 
@@ -514,8 +617,24 @@ class MessageParser:
 
         return color_map
 
+    def _join_message_lines(self, lines):
+        """Join the header line of a message with its continuation lines.
+
+        Trailing blank lines are dropped: WhatsApp trims messages on send, so
+        they never end with an empty line. Such lines come from the export
+        itself, typically the newline that terminates the chat file, and would
+        otherwise render as a spurious line break. Blank lines inside a
+        message are kept.
+        """
+        end = len(lines)
+        while end > 1 and not lines[end - 1].strip():
+            end -= 1
+        return lines[0] + ''.join(self.newline_marker + line for line in lines[1:end])
+
     def parse_messages(self, chat_content, chat_name="", date_range=None, own_name=""):
         """Parse chat content into a Chat object."""
+        chat_content = self.normalize_locale_markers(chat_content)
+
         # Set the message date format
         self.message_date_format = self.get_date_format(chat_content)
 
@@ -541,8 +660,6 @@ class MessageParser:
         total_count = 0
 
         for line in chat_content.split('\n'):
-            # remove the Left-to-right_marks
-            line = line.replace('‎','')
             pattern = self.chat_patterns['ios'] if self.is_ios else self.chat_patterns['android']
             wapattern = self.whatsapp_patterns['ios'] if self.is_ios else self.whatsapp_patterns['android']
             match = pattern.match(line)
@@ -551,7 +668,7 @@ class MessageParser:
             if match or wamatch:
                 total_count += 1
                 if current_line:
-                    processed_content.append(''.join(current_line))
+                    processed_content.append(self._join_message_lines(current_line))
 
                 # Only add messages within date range
                 if match:
@@ -569,11 +686,11 @@ class MessageParser:
                 current_line = [line]
             else:
                 if current_line:
-                    current_line.append(self.newline_marker + line)
+                    current_line.append(line)
 
         # Don't forget to add the last message
         if current_line:
-            processed_content.append(''.join(current_line))
+            processed_content.append(self._join_message_lines(current_line))
 
         # Parse each processed line into Message objects
         messages = []
@@ -585,7 +702,10 @@ class MessageParser:
 
             if match:
                 timestamp, sender, content = match.groups()
+                sender = self.trim_zero_widths(sender)
+                sender = self.mark_invisible_chars(sender)
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender=sender,
                     content=content,
@@ -594,6 +714,7 @@ class MessageParser:
             elif wamatch:
                 timestamp, content = wamatch.groups()
                 messages.append(Message.create_with_context(
+                    id=len(messages)+1,
                     timestamp=timestamp,
                     sender="WhatsApp",
                     content=content,
@@ -610,16 +731,26 @@ class MessageParser:
 class HTMLRenderer(Renderer):
     """Renders messages to HTML format."""
 
-    def __init__(self, output_dir, has_media=False):
+    def __init__(self, output_dir, has_media=False, embed_media=False, zip_path=None, media_path="./media"):
         super().__init__(output_dir)
         self.has_media = has_media
+        self.embed_media = embed_media
+        self.zip_path = zip_path
+        self.media_path = media_path
         self.html_filename = 'chat.html'
         self.html_filename_media_linked = 'chat_media_linked.html'
+        if embed_media:
+            # replace .zip with .html
+            self.html_filename = Path(self.zip_path).stem + '.html'
+            self.html_filename_media_linked = None
         self.attachments_to_extract = set()
 
     def get_generated_files(self) -> list[Path]:
         """Get the generated files."""
-        return [Path(self.output_dir, self.html_filename), Path(self.output_dir, self.html_filename_media_linked)]
+        result = [Path(self.output_dir, self.html_filename)]
+        if self.html_filename_media_linked:
+            result.append(Path(self.output_dir, self.html_filename_media_linked))
+        return result
 
     def get_css_styles(self):
         """Return the CSS styles for the HTML output."""
@@ -642,10 +773,6 @@ class HTMLRenderer(Renderer):
             float: right;
             margin-left: 35%;
         }
-        .message.received {
-            float: left;
-            margin-right: 35%;
-        }
         .message.whatsapp {
             max-width: 100%
         }
@@ -653,6 +780,30 @@ class HTMLRenderer(Renderer):
             max-width: 100%;
             border-radius: 5px;
             margin: 5px 0;
+        }
+        .text-file {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            margin: 5px 0;
+        }
+        .text-file h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 0.9em;
+        }
+        .text-content {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 3px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         .timestamp {
             color: #667781;
@@ -683,6 +834,12 @@ class HTMLRenderer(Renderer):
         a:hover {
             text-decoration: underline;
         }
+        @media(width > 800px) {
+            .message.received {
+                float: left;
+                margin-right: 35%;
+            }
+        }
         @media print {
             body {
                 background-color: #ffffff;
@@ -691,18 +848,20 @@ class HTMLRenderer(Renderer):
 
     def get_html_header(self):
         """Generate the HTML header."""
+        safe_name = html_module.escape(self.chat.name)
         return f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{self.chat.name}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{safe_name}</title>
     <style>
         {self.get_css_styles()}
     </style>
 </head>
 <body>
 <div class="chat-container">
-<h1>{self.chat.name}</h1>"""
+<h1>{safe_name}</h1>"""
 
     def get_html_footer(self):
         """Generate the HTML footer."""
@@ -711,9 +870,90 @@ class HTMLRenderer(Renderer):
 </body>
 </html>"""
 
+    def get_mime_type(self, filename):
+        """Get MIME type based on file extension."""
+        ext = filename.lower()
+        if ext.endswith(('.jpg', '.jpeg')):
+            return 'image/jpeg'
+        elif ext.endswith('.png'):
+            return 'image/png'
+        elif ext.endswith('.gif'):
+            return 'image/gif'
+        elif ext.endswith('.webp'):
+            return 'image/webp'
+        elif ext.endswith('.mp4'):
+            return 'video/mp4'
+        elif ext.endswith('.opus'):
+            return 'audio/ogg'
+        elif ext.endswith('.mp3'):
+            return 'audio/mpeg'
+        elif ext.endswith('.wav'):
+            return 'audio/wav'
+        elif ext.endswith('.m4a'):
+            return 'audio/mp4'
+        elif ext.endswith('.pdf'):
+            return 'application/pdf'
+        elif ext.endswith(('.doc', '.docx')):
+            return 'application/msword'
+        elif ext.endswith(('.xls', '.xlsx')):
+            return 'application/vnd.ms-excel'
+        elif ext.endswith(('.ppt', '.pptx')):
+            return 'application/vnd.ms-powerpoint'
+        elif ext.endswith('.txt'):
+            return 'text/plain'
+        elif ext.endswith('.rtf'):
+            return 'application/rtf'
+        elif ext.endswith('.zip'):
+            return 'application/zip'
+        elif ext.endswith('.rar'):
+            return 'application/x-rar-compressed'
+        elif ext.endswith('.7z'):
+            return 'application/x-7z-compressed'
+        elif ext.endswith('.tar'):
+            return 'application/x-tar'
+        elif ext.endswith('.gz'):
+            return 'application/gzip'
+        elif ext.endswith('.csv'):
+            return 'text/csv'
+        elif ext.endswith('.json'):
+            return 'application/json'
+        elif ext.endswith('.xml'):
+            return 'application/xml'
+        elif ext.endswith('.html'):
+            return 'text/html'
+        elif ext.endswith('.css'):
+            return 'text/css'
+        elif ext.endswith('.js'):
+            return 'application/javascript'
+        elif ext.endswith('.py'):
+            return 'text/x-python'
+        elif ext.endswith('.java'):
+            return 'text/x-java-source'
+        elif ext.endswith(('.cpp', '.c', '.h')):
+            return 'text/x-c'
+        else:
+            return 'application/octet-stream'
+
+    def encode_media_to_base64(self, attachment_name):
+        """Read media file from zip and encode to base64."""
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                with zip_ref.open(attachment_name) as media_file:
+                    media_data = media_file.read()
+                    base64_data = base64.b64encode(media_data).decode('utf-8')
+                    mime_type = self.get_mime_type(attachment_name)
+                    return f"data:{mime_type};base64,{base64_data}"
+        except Exception as e:
+            print(f"Warning: Could not encode {attachment_name} to base64: {e}")
+            return None
+
+    def media_file_url(self, attachment_name):
+        """Build a media URL, percent-encoding spaces and other reserved characters."""
+        return f"{self.media_path}/{quote(attachment_name, safe='/')}"
+
     def render_media_element(self, attachment_name, is_media_linked=False):
         """Render a media element based on its file extension."""
-        media_path = f"./media/{attachment_name}"
+        media_path = self.media_file_url(attachment_name)
 
         if is_media_linked:
             # Always show as link in media-linked version
@@ -721,6 +961,32 @@ class HTMLRenderer(Renderer):
 
         # Render media inline in main version
         ext = attachment_name.lower()
+        
+        # If embed_media is enabled, try to encode as base64
+        if self.embed_media and self.zip_path:
+            base64_data = self.encode_media_to_base64(attachment_name)
+            if base64_data:
+                # Images
+                if ext.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+                    return f'<img class="media" src="{base64_data}"><br>'
+                # Videos
+                elif ext.endswith('.mp4'):
+                    return f'<video class="media" controls><source src="{base64_data}" type="video/mp4"></video><br>'
+                # Audio files
+                elif ext.endswith('.opus'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/ogg"></audio><br>'
+                elif ext.endswith('.wav'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/wav"></audio><br>'
+                elif ext.endswith('.mp3'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/mpeg"></audio><br>'
+                elif ext.endswith('.m4a'):
+                    return f'<audio class="media" controls><source src="{base64_data}" type="audio/mp4"></audio><br>'
+                
+                # Other documents - provide download link with base64 data
+                else:
+                    return f'<a href="{base64_data}" download="{attachment_name}">📎 {attachment_name}</a><br>'
+        
+        # Fallback to file references
         if ext.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
             return f'<img class="media" src="{media_path}"><br>'
         elif ext.endswith('.mp4'):
@@ -747,11 +1013,12 @@ class HTMLRenderer(Renderer):
         bg_color = sender_color_map.get(message.sender, '#ffffff')
 
         # Common message structure
-        message_start = f'\n<div class="message {message_class} clearfix" style="background-color: {bg_color};">'
-        sender_div = f'<div class="sender">{message.sender}</div>'
+        message_start = f'\n<div class="message {message_class} clearfix" data-id="{message.id}" style="background-color: {bg_color};">'
+        sender_div = f'<div class="sender">{html_module.escape(message.sender)}</div>'
         content_start = '<div class="content">'
         content_end = '</div>'
-        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp}</span>'
+        timestamp_span = f'<span class="timestamp">{message.formatted_timestamp} (#{message.id})</span>'
+
         message_end = '</div>'
 
         # Write message start to both files
@@ -796,48 +1063,55 @@ class HTMLRenderer(Renderer):
         self.chat = chat
         # Prepare file paths
         main_html_path = os.path.join(self.output_dir, self.html_filename)
-        media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
+        if self.html_filename_media_linked:
+            media_linked_html_path = os.path.join(self.output_dir, self.html_filename_media_linked)
+        else:
+            # Use a proper temp file instead of a hardcoded name
+            tmp_fd, media_linked_html_path = tempfile.mkstemp(suffix='.tmp', prefix='chat_export_')
+            os.close(tmp_fd)
 
-        # Open both files for writing
-        with open(main_html_path, 'w', encoding='utf-8') as main_f, \
-             open(media_linked_html_path, 'w', encoding='utf-8') as media_f:
-            
-            # Write header to both files
-            header = self.get_html_header()
-            main_f.write(header)
-            media_f.write(header)
+        try:
+            # Open both files for writing
+            with open(main_html_path, 'w', encoding='utf-8') as main_f, \
+                 open(media_linked_html_path, 'w', encoding='utf-8') as media_f:
 
-            # Write date range and attribution to both files
-            if chat.date_range and chat.date_range.is_filtered():
-                date_range_str = chat.date_range.format_range(chat.message_date_format)
-                if date_range_str:
-                    date_html = f'<p style="color: #667781;">{date_range_str}</p>'
-                    main_f.write(date_html)
-                    media_f.write(date_html)
+                # Write header to both files
+                header = self.get_html_header()
+                main_f.write(header)
+                media_f.write(header)
 
-            attribution = '<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
-            main_f.write(attribution)
-            media_f.write(attribution)
+                # Write date range and attribution to both files
+                if chat.date_range and chat.date_range.is_filtered():
+                    date_range_str = chat.date_range.format_range(chat.message_date_format)
+                    if date_range_str:
+                        date_html = f'<p style="color: #667781;">{date_range_str}</p>'
+                        main_f.write(date_html)
+                        media_f.write(date_html)
 
-            
-            message_count = 0
+                attribution = '<p style="color: #667781;">This rendering has been created with the free offline tool `chat-export` from https://chat-export.click </p>'
+                main_f.write(attribution)
+                media_f.write(attribution)
 
-            for message in chat.messages:
-                self.render_message(message, chat.sender_color_map, chat.own_name, main_f, media_f)
-                message_count += 1
+                message_count = 0
 
-            
+                for message in chat.messages:
+                    self.render_message(message, chat.sender_color_map, chat.own_name, main_f, media_f)
+                    message_count += 1
 
-            # Write footer to both files
-            footer = self.get_html_footer()
-            main_f.write(footer)
-            media_f.write(footer)
+                # Write footer to both files
+                footer = self.get_html_footer()
+                main_f.write(footer)
+                media_f.write(footer)
+        finally:
+            # Clean up temp file if embed_media mode (no media-linked HTML needed)
+            if not self.html_filename_media_linked and os.path.exists(media_linked_html_path):
+                os.remove(media_linked_html_path)
 
         return self.attachments_to_extract
 
 
 class ChatExport:
-    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None):
+    def __init__(self, zip_path, from_date=None, until_date=None, participant_name=None, base_output_dir=None, embed_media=False):
         # Validate zip file existence
         if not os.path.exists(zip_path):
             raise FileNotFoundError(f"Could not find the file: {zip_path}\nPlease check if the file path is correct.")
@@ -851,42 +1125,26 @@ class ChatExport:
         self.from_date = from_date
         self.until_date = until_date
         self.participant_name = participant_name
+        self.embed_media = embed_media
 
         # Set up output directory: base_output_dir/zip_filename or just zip_filename
         zip_stem = Path(zip_path).stem
-        if base_output_dir:
-            # Normalize the base output directory path (handle Windows paths, quotes, etc.)
-            normalized_base_dir = parse_path(base_output_dir)
-            self.output_dir = os.path.join(normalized_base_dir, zip_stem)
-        else:
-            self.output_dir = zip_stem
+        if self.embed_media:
+            if base_output_dir:
+                self.output_dir = parse_path(base_output_dir)
+            else:
+                self.output_dir = Path("")
+        else: 
+            if base_output_dir:
+                # Normalize the base output directory path (handle Windows paths, quotes, etc.)
+                normalized_base_dir = parse_path(base_output_dir)
+                self.output_dir = Path(os.path.join(normalized_base_dir, zip_stem))
+            else:
+                self.output_dir = Path(zip_stem)
         self.media_dir = os.path.join(self.output_dir, "media")
 
         self.own_name = participant_name
         self.attachments_in_zip = set()
-        self.sender_colors = {
-            'own': '#d9fdd3',    # WhatsApp green for own messages
-            'default': '#ffffff', # White for the second sender
-            'whatsapp': '#20c063',
-            # Additional colors for other senders
-            'others': [
-                '#f0e6ff',  # Light purple
-                '#fff3e6',  # Light orange
-                '#e6fff0',  # Light mint
-                '#ffe6e6',  # Light pink
-                '#e6f3ff',  # Light blue
-                '#fff0f0',  # Lighter pink
-                '#e6ffe6',  # Lighter mint
-                '#f2e6ff',  # Lighter purple
-                '#fff5e6',  # Peach
-                '#e6ffff',  # Light cyan
-                '#ffe6f0',  # Rose
-                '#f0ffe6',  # Light lime
-                '#e6e6ff',  # Lavender
-                '#ffe6cc',  # Light apricot
-                '#e6fff9'   # Light turquoise
-            ]
-        }
         self.has_media = False
         self.is_ios = False
 
@@ -894,7 +1152,9 @@ class ChatExport:
             "%d.%m.%Y",  # German format: DD.MM.YYYY
             "%m/%d/%Y",  # US format: MM/DD/YYYY
             "%d.%m.%y",  # German format: DD.MM.YY
-            "%m/%d/%y"   # US format: MM/DD/YY
+            "%m/%d/%y",  # US format: MM/DD/YY
+            "%d/%m/%Y",  # Indonesian format: DD/MM/YYYY
+            "%d/%m/%y"   # Indonesian format: DD/MM/YY
         ]
 
         # Initialize modular components (will be set up later after platform detection)
@@ -910,7 +1170,7 @@ class ChatExport:
             for i, sender in enumerate(senders, 1):
                 print(f"{i}. {sender}")
             print("\nPlease use one of the names listed above exactly as shown.")
-            raise ValueError(f"Participant '{participant_name}' not found in chat")
+            raise ValueError(f"Participant '{participant_name}' not found in chat participants ({', '.join(senders)}). Make sure to use one of the listed names.")
         return True
 
     def parse_date_input(self, date_str):
@@ -930,13 +1190,113 @@ class ChatExport:
         # Setup renderer
         self.renderer = HTMLRenderer(
             output_dir=self.output_dir,
-            has_media=self.has_media
+            has_media=self.has_media,
+            embed_media=self.embed_media,
+            zip_path=self.zip_path
         )
 
     @staticmethod
     def most_similar(target: str, candidates: list[str]) -> str:
         """Return the string from candidates most similar to target."""
         return max(candidates, key=lambda c: difflib.SequenceMatcher(None, target, c).ratio())
+
+    # Files/dirs this tool writes into a non-embed output folder.
+    _EXPORT_DIR_ENTRIES = frozenset({"chat.html", "chat_media_linked.html", "media"})
+    _IGNORABLE_DIR_ENTRIES = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
+
+    @staticmethod
+    def _is_protected_path(path: Path) -> bool:
+        """True for filesystem roots, the user's home, or the current working directory."""
+        try:
+            resolved = Path(path).resolve()
+        except OSError:
+            return True
+        if resolved == resolved.parent:
+            return True
+        for special in (Path.home(), Path.cwd()):
+            try:
+                if resolved == special.resolve():
+                    return True
+            except OSError:
+                continue
+        return False
+
+    def _is_replaceable_export_dir(self, output_dir: Path, zip_stem: str) -> bool:
+        """True only if this is a previous chat-export folder we may delete.
+
+        Requires an exact directory name match (not a suffix), refuses protected
+        paths, and refuses folders that contain anything other than our output files.
+        """
+        if self.embed_media:
+            return False
+        path = Path(output_dir)
+        if not path.exists() or not path.is_dir():
+            return False
+        if path.name != zip_stem:
+            return False
+        if self._is_protected_path(path):
+            return False
+        try:
+            entries = {p.name for p in path.iterdir()}
+        except OSError:
+            return False
+        return (entries - self._IGNORABLE_DIR_ENTRIES) <= self._EXPORT_DIR_ENTRIES
+
+    def _prepare_output_directories(self):
+        """Create output dirs. Delete a previous export only when that is clearly safe."""
+        zip_stem = Path(self.zip_path).stem
+        output_path = Path(self.output_dir)
+
+        if output_path.exists() and not self.embed_media:
+            if self._is_replaceable_export_dir(output_path, zip_stem):
+                print(f"Cleaning existing directory: {self.output_dir}")
+                shutil.rmtree(self.output_dir)
+            elif output_path.is_file() or self._is_protected_path(output_path) or any(output_path.iterdir()):
+                raise ValueError(
+                    f"Output directory '{output_path}' already exists and is not a previous "
+                    f"chat-export (expected only chat.html, chat_media_linked.html, and media/). "
+                    f"Refusing to delete it. Use --output-dir to choose another location, "
+                    f"or remove the directory manually."
+                )
+
+        os.makedirs(self.output_dir, exist_ok=True)
+        if self.has_media and not self.embed_media:
+            os.makedirs(self.media_dir, exist_ok=True)
+
+    def _read_chat_from_zip(self) -> str:
+        """Validate the ZIP and read the chat text. Does not touch the output directory."""
+        zip_base_name = Path(self.zip_path).stem
+        try:
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
+                if not chat_file_candidates:
+                    raise FileNotFoundError("No .txt file found in the ZIP archive. Not a valid WhatsApp export zip.")
+                if '_chat.txt' in chat_file_candidates:
+                    self.is_ios = True
+                    chat_file = '_chat.txt'
+                else:
+                    self.is_ios = False
+                    chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
+
+                for file in zip_ref.namelist():
+                    if file != chat_file:
+                        self.attachments_in_zip.add(file)
+                        self.has_media = True
+
+                if chat_file not in zip_ref.namelist():
+                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
+
+                with zip_ref.open(chat_file) as f:
+                    chat_content = f.read().decode('utf-8')
+        except zipfile.BadZipFile:
+            raise ValueError(f"The file {self.zip_path} is not a valid ZIP file.")
+
+        kind = 'iOS' if self.is_ios else 'Android'
+        if self.has_media:
+            print(f"ZIP file is an {kind} export with media/attachments, '{chat_file}' is the chat text file.")
+        else:
+            print(f"ZIP file is an {kind} export without media/attachments, '{chat_file}' is the chat text file.")
+        return chat_content
 
     def process_chat(self):
         # Ask for optional date range
@@ -966,46 +1326,7 @@ class ChatExport:
                     break
         
 
-        # Get the base name of the zip file without extension
-        zip_base_name = Path(self.zip_path).stem
-
-        if os.path.exists(self.output_dir):
-                print(f"Cleaning existing directory: {self.output_dir}")
-                shutil.rmtree(self.output_dir)
-
-        # Create fresh output directories
-        os.makedirs(self.output_dir)
-        os.makedirs(self.media_dir)
-
-        
-
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
-            if '_chat.txt' in chat_file_candidates:
-                self.is_ios = True
-                chat_file = '_chat.txt'
-            else:
-                self.is_ios = False
-                chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
-
-            # Extract media files
-            for file in zip_ref.namelist():
-                if file != chat_file:
-                    self.attachments_in_zip.add(file)
-                    self.has_media = True
-            
-            # If still not found, raise error
-            if chat_file not in zip_ref.namelist():
-                raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
-
-            with zip_ref.open(chat_file) as f:
-                chat_content = f.read().decode('utf-8')
-        if self.has_media:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
-        else:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            shutil.rmtree(self.media_dir)
-        # Setup modular components now that we know the platform and media status
+        chat_content = self._read_chat_from_zip()
         self.setup_modular_components()
 
         # Create date range for filtering
@@ -1044,10 +1365,12 @@ class ChatExport:
                 raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(chat.messages)} messages.")
 
+        self._prepare_output_directories()
+
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
 
-        if self.has_media:
+        if self.has_media and not self.embed_media:
             print("Extracting attachments/media...")
             # extract attachments of rendered messages
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
@@ -1055,6 +1378,8 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
+        elif self.has_media and self.embed_media:
+            print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
 
@@ -1078,51 +1403,7 @@ class ChatExport:
 
         processing_start_time = time.time()
 
-        # Get the base name of the zip file without extension
-        zip_base_name = Path(self.zip_path).stem
-
-        if os.path.exists(self.output_dir):
-            print(f"Cleaning existing directory: {self.output_dir}")
-            shutil.rmtree(self.output_dir)
-
-        # Create fresh output directories
-        os.makedirs(self.output_dir)
-        os.makedirs(self.media_dir)
-
-        # Validate that it's a proper ZIP file
-        try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-                chat_file_candidates = [f for f in zip_ref.namelist() if f.lower().endswith('.txt')]
-                if '_chat.txt' in chat_file_candidates:
-                    self.is_ios = True
-                    chat_file = '_chat.txt'
-                else:
-                    self.is_ios = False
-                    chat_file = self.most_similar(f"{zip_base_name}.txt", chat_file_candidates)
-
-                # Extract media files
-                for file in zip_ref.namelist():
-                    if file != chat_file:
-                        self.attachments_in_zip.add(file)
-                        self.has_media = True
-
-                # If still not found, raise error
-                if chat_file not in zip_ref.namelist():
-                    raise FileNotFoundError(f"The chat file '{chat_file}' does not exist in the ZIP archive. Not a valid WhatsApp export zip.")
-
-                with zip_ref.open(chat_file) as f:
-                    chat_content = f.read().decode('utf-8')
-
-        except zipfile.BadZipFile:
-            raise ValueError(f"The file {self.zip_path} is not a valid ZIP file.")
-
-        if self.has_media:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export with media/attachments, '{chat_file}' is the chat text file.")
-        else:
-            print(f"ZIP file is an {'iOS' if self.is_ios else 'Android'} export without media/attachments, '{chat_file}' is the chat text file.")
-            shutil.rmtree(self.media_dir)
-
-        # Setup modular components now that we know the platform and media status
+        chat_content = self._read_chat_from_zip()
         self.setup_modular_components()
 
         # Create date range for filtering
@@ -1147,10 +1428,12 @@ class ChatExport:
                 raise ValueError("No messages found in the specified date range. Aborting.")
         print(f"Exporting {len(chat.messages)} messages.")
 
+        self._prepare_output_directories()
+
         # Render messages using the new HTMLRenderer
         attachments_to_extract = self.renderer.render(chat)
 
-        if self.has_media:
+        if self.has_media and not self.embed_media:
             print("Extracting attachments/media...")
             # extract attachments of rendered messages
             with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
@@ -1158,8 +1441,11 @@ class ChatExport:
                 for file in zip_ref.namelist():
                     if file in attachments_to_extract:
                         zip_ref.extract(file, self.media_dir)
+        elif self.has_media and self.embed_media:
+            print("Media will be embedded as base64 in HTML (no file extraction needed)")
         processing_end_time = time.time()
         print(f"Processing took {processing_end_time - processing_start_time:.3f} seconds")
+        return chat
         
 
 
@@ -1170,7 +1456,7 @@ def check_tkinter_availability():
         root = tk.Tk()
         root.destroy()
         return True
-    except Exception as e:
+    except Exception:
         print("Tkinter is not available on your system. Using prompt input instead of file picker dialog.")
         return False
 
@@ -1215,7 +1501,7 @@ def main():
     args = parse_arguments()
     if args.non_interactive:
         # Non-interactive mode
-        print(f"chat-export v{version} - Non-interactive mode")
+        print(f"chat-export v{__version__} - Non-interactive mode")
         print("----------------------------------------")
         success = False
         try:
@@ -1225,7 +1511,7 @@ def main():
             from_date = args.from_date if args.from_date else None
             until_date = args.until_date if args.until_date else None
 
-            chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir)
+            chat_export = ChatExport(args.zip_file, from_date, until_date, args.participant, args.output_dir, args.embed_media)
             chat_export.process_chat_non_interactive()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             print("Done.")
@@ -1240,11 +1526,11 @@ def main():
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             print(traceback.format_exc())
-            sys.exit(1)
+            sys.exit(1) 
 
     else:
         # Interactive mode (original behavior)
-        print(f"Welcome to chat-export v{version}")
+        print(f"Welcome to chat-export v{__version__}")
         print("----------------------------------------")
         print("Select the WhatsApp chat export ZIP file you want to convert to HTML.")
         success = False
@@ -1253,7 +1539,7 @@ def main():
             if not selected_zip_file:
                 raise FileNotFoundError("No file selected.")
             print(f"Processing selected file: {selected_zip_file}...")
-            chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir)
+            chat_export = ChatExport(selected_zip_file, base_output_dir=args.output_dir, embed_media=args.embed_media)
             chat_export.process_chat()
             print(f'Written: {", ".join([str(p.absolute()) for p in chat_export.renderer.get_generated_files()])}')
             print("Done.")

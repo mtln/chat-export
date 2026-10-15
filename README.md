@@ -28,12 +28,9 @@ Maybe you want to:
 * export just an excerpt of a chat from a specific date range.
 * archive a chat before freeing up space on your phone by deleting photos, videos, and other documents that were part of the chat.
 * ask another chat participant who still has a complete version of the chat (including all pictures) on his or her phone to send you a chat export, so you can convert and archive it.
-* batch process multiple chat exports automatically using the CLI mode.
-* integrate chat conversion into backup or archival scripts.
-* process chat exports on headless servers or in automated workflows.
 
 Furthermore, the tool is [open-source](https://github.com/mtln/chat-export) and runs offline on your computer, so you can be sure that your data is not being sent to any server.  
-And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3csfZLaIj5JE6dO4gg).
+And by the way, it’s free! If you find it useful, you can [donate](https://donate.stripe.com/3cI8wO0yD8Wt0ItbV06J204).
 
 ## Instructions
 
@@ -77,29 +74,36 @@ You can for example save it on Google Drive or Dropbox or send it to yourself wi
    For better user experience with native file picker dialogs, you can install platform-specific dependencies:
    
    **On macOS:**
-   ```
-   pip install chat-export[macos]
-   ```
+```
+pip install chat-export[macos]
+```
    
    **On Windows:**
-   ```
-   pip install chat-export[windows]
-   ```
+```
+pip install chat-export[windows]
+```
    
       
    *Note: Without these optional dependencies, the tool will fall back to command-line input for file selection or use tkinter (if available) for file dialogs. If you're planning to use the tool in non-interactive mode, you don't need to install these dependencies.*
    
    After installation, you can run it from anywhere in your terminal:
 
-   ```
-   chat-export
-   chat-export --help
-   ```
-   
-   To uninstall:
-   ```
-   pip uninstall chat-export
-   ```
+```
+chat-export
+```
+
+or
+```
+chat-export --help
+```
+
+To uninstall:
+```
+pip uninstall chat-export
+```
+
+#### Using uv tool instead of pip
+If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
 
 #### Using uv tool instead of pip
 If you have uv installed, you can use `uv tool install` instead of `pip install`. This is perfect for tools like chat-export because it will install the dependencies in a virtual environment and not in the global environment - while still making the tool available globally in your shell / path. 
@@ -117,16 +121,45 @@ uv tool uninstall chat-export
 ```
 
 
-###Option 3: Run Directly (No Installation)
-   
-   If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
-     ```
-     python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
-     or
-     ```
-     python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/main.py').read().decode())"
-     ```
+`uv tool install chat-export[windows]` 
+or 
+`uv tool install chat-export[macos]` 
+or just 
+`uv tool install chat-export` 
+uninstall with: 
+`uv tool uninstall chat-export`
+
+
+### Option 3: Run Directly (No Installation)
+
+If Python is installed on your Windows, Mac or Linux computer, run the tool directly (no pip installation required, no venv required, no additional dependencies required because it's just vanilla standard lib Python in a single scriptfile, always run the latest up to date version directly from GitHub) with the following command:
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
+```
+
+or
+
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())"
+```
+
+Options for special features, such as `--embed-media` or `--output-dir`, can be passed as command line arguments:
+
+```
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
+
+or
+
+```
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/mtln/chat-export/refs/heads/main/chat_export/chat_export.py').read().decode())" --embed-media --output-dir "C:\temp"
+```
+
+or if you have `uv` installed, you can use `uvx`:
+
+```
+uvx chat-export
+```
 
 ## Usage
 
@@ -134,11 +167,12 @@ The tool supports both interactive and non-interactive modes:
 
 ### Interactive Mode (Default)
 
-Just run `chat-export` in your terminal.
+Just run `chat-export` in your terminal. Use CLI parameters for special features, such as `--output-dir` or `--embed-media`.
 
 **CLI Parameters:**
 
 `-o, --output-dir`: Base directory where the chat folder will be created (optional, default: current directory)
+`--embed-media`: Embed media files as base64 in HTML instead of linking to external files (optional)
 
 
 * After starting the tool, a file picker dialog will open. Select the ZIP file of the chat export you want to convert. If your installation does not support file dialogs, you will be prompted for the path to the ZIP file.
@@ -149,6 +183,22 @@ Just run `chat-export` in your terminal.
 ### Command Line Interface (Non-Interactive Mode)
 
 For automation, scripting, or when you know all parameters in advance, you can use the non-interactive CLI mode. This mode processes the chat without any prompts and is perfect for batch processing or integration into other tools.
+
+#### Media Embedding Options
+
+The tool offers two approaches for handling media files:
+
+**Default Behavior (External Media Files):**
+- Creates a folder structure with HTML files and a separate `media/` folder
+- Media files are extracted and linked to from the HTML
+- Results in multiple files that need to be kept together
+- Smaller HTML files, but requires managing multiple files
+
+**Embedded Media (`--embed-media` option):**
+- Creates a single self-contained HTML file with all media embedded as base64
+- No external media files are created or needed
+- Perfect for sharing, archiving, or when you want everything in one file
+- Larger HTML file size, but completely portable
 
 **Basic Usage:**
 ```
@@ -163,6 +213,7 @@ chat-export -n -z "path/to/chat.zip" -p "Your Name"
 - `--from-date`: Optional start date for filtering (formats: DD.MM.YYYY, MM/DD/YYYY, DD.MM.YY, MM/DD/YY)
 - `--until-date`: Optional end date for filtering
 - `-o, --output-dir`: Base directory where the chat folder will be created (default: current directory)
+- `--embed-media`: Embed media files as base64 in HTML instead of linking to external files (optional)
 
 
 **Examples:**
@@ -191,9 +242,15 @@ Windows paths (important: no trailing backslash):
 chat-export -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ```
 
+With embedded media (creates a single self-contained HTML file):
+```
+chat-export -n -z "chat.zip" -p "Your Name" --embed-media
+```
+
 **Important Notes:**
 - The participant name must match exactly as it appears in the chat (case-sensitive)
 - If the participant name is not found, the tool will display all available participants and exit
+- When using `--embed-media`, media files are encoded as base64 and embedded directly in the HTML, creating a single self-contained file that doesn't require external media files
 
 
 * When printing an HTML page, most web browsers are set by default to exclude background colors to save ink or toner. If you want to include them, you need to enable background graphics in your browser settings. See the section below for instructions. 
@@ -205,7 +262,7 @@ chat-export -n -z "chat.zip" -p "Your Name" -o "C:\temp"
 ## Supported languages
 WhatsApp chat exports vary depending on your phone’s system language. 
 
-chat-export has been tested with many languages and regional settings.
+chat-export has been tested with many languages and regional settings, including right-to-left exports such as Arabic (Arabic digits, the Arabic comma and the ص/م time markers are handled).
 
 If it doesn't work for your language, please let me know.
 
@@ -214,6 +271,16 @@ If it doesn't work for your language, please let me know.
 * Windows
 * Mac
 * Linux
+
+## Development
+
+Tests live in the `tests/` directory and use Python's built-in `unittest`, so no extra packages are needed. Run them from the repository root:
+
+```bash
+python -m unittest discover -s tests -t . -v
+```
+
+Any file named `tests/test_*.py` is picked up automatically. The same command runs on GitHub Actions for every push to `main` and every pull request (see `.github/workflows/tests.yml`).
 
 ## Limitations
 There is information in chats, that is not included in the export.zip created by WhatsApp. As a consequence, this information cannot be rendered by chat-export.
