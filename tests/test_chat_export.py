@@ -10,6 +10,7 @@ from chat_export.chat_export import Chat, ChatExport
 
 from tests.helpers import (
     ANDROID_MEDIA,
+    FAKE_PDF,
     IOS_MEDIA,
     TINY_PNG,
     TempDirTestCase,
@@ -534,6 +535,38 @@ class NonInteractiveIOSExportTest(TempDirTestCase):
             chat = export.process_chat_non_interactive()
 
         self.assertEqual(chat.messages[0].sender, "Tariq Haddad")
+
+    def test_document_with_spaces_in_filename_is_extracted_and_linked(self):
+        filename = "01-My Doc with spaces.pdf"
+        text = "\n".join([
+            "[13.10.26, 10:30:00] Priya Nair: 01-My Doc with spaces.pdf • 4 pages",
+            f"<attached: {filename}>",
+            "[13.10.26, 10:31:00] Tariq Haddad: thanks",
+        ])
+        zip_path = make_ios_zip(self.tmp, chat_text=text, media={filename: FAKE_PDF})
+        out_base = self.tmp / "out"
+        export = ChatExport(zip_path, participant_name="Priya Nair", base_output_dir=str(out_base))
+
+        with quiet():
+            export.process_chat_non_interactive()
+
+        out_dir = out_base / "WhatsApp Chat - Tariq Haddad"
+        html = self.read_text(out_dir / "chat.html")
+        linked = self.read_text(out_dir / "chat_media_linked.html")
+        extracted = out_dir / "media" / filename
+
+        self.assertTrue(extracted.is_file())
+        self.assertEqual(extracted.read_bytes(), FAKE_PDF)
+        self.assertIn(
+            '<a href="./media/01-My%20Doc%20with%20spaces.pdf">📎 01-My Doc with spaces.pdf</a>',
+            html,
+        )
+        self.assertIn(
+            '<a href="./media/01-My%20Doc%20with%20spaces.pdf">📎 01-My Doc with spaces.pdf</a>',
+            linked,
+        )
+        self.assertNotIn("[attached:", html)
+        self.assertIn("01-My Doc with spaces.pdf • 4 pages", html)
 
 
 class OutputDirectorySafetyTest(TempDirTestCase):

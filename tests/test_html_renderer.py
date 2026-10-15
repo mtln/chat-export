@@ -146,6 +146,18 @@ class MediaElementLinkedTest(unittest.TestCase):
             '<a href="./media/agenda.pdf">📎 agenda.pdf</a><br>',
         )
 
+    def test_filename_with_spaces_is_percent_encoded_in_the_url(self):
+        filename = "01-My Doc with spaces.pdf"
+
+        self.assertEqual(
+            self.renderer.render_media_element(filename),
+            '<a href="./media/01-My%20Doc%20with%20spaces.pdf">📎 01-My Doc with spaces.pdf</a><br>',
+        )
+        self.assertEqual(
+            self.renderer.render_media_element(filename, is_media_linked=True),
+            '<a href="./media/01-My%20Doc%20with%20spaces.pdf">📎 01-My Doc with spaces.pdf</a><br>',
+        )
+
     def test_media_linked_variant_always_links(self):
         for name in ("pic.jpg", "clip.mp4", "voice.opus", "agenda.pdf"):
             with self.subTest(name=name):
