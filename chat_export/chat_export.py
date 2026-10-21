@@ -1354,7 +1354,7 @@ class ChatExport:
         # Parse messages using the new MessageParser - now returns a Chat object
         chat, filtered_count, total_count = self.parser.parse_messages(
             chat_content,
-            chat_name=os.path.basename(self.zip_path),
+            chat_name=Path(self.zip_path).stem,
             date_range=date_range,
             own_name=self.own_name
         )
@@ -1417,7 +1417,7 @@ class ChatExport:
         # Parse messages using the new MessageParser - now returns a Chat object
         chat, filtered_count, total_count = self.parser.parse_messages(
             chat_content,
-            chat_name=os.path.basename(self.zip_path),
+            chat_name=Path(self.zip_path).stem,
             date_range=date_range,
             own_name=self.own_name
         )
