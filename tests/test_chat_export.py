@@ -275,7 +275,7 @@ class NonInteractiveAndroidExportTest(TempDirTestCase):
         _, chat = self.run_export()
 
         self.assertIsInstance(chat, Chat)
-        self.assertEqual(chat.name, "WhatsApp Chat with Lunch Club.zip")
+        self.assertEqual(chat.name, "WhatsApp Chat with Lunch Club")
         self.assertEqual(chat.own_name, "Lena Voss")
         self.assertEqual(len(chat.messages), 11)
 
@@ -289,7 +289,7 @@ class NonInteractiveAndroidExportTest(TempDirTestCase):
         self.run_export()
         html = self.read_text(self.out_base / "WhatsApp Chat with Lunch Club" / "chat.html")
 
-        self.assertIn("<title>WhatsApp Chat with Lunch Club.zip</title>", html)
+        self.assertIn("<title>WhatsApp Chat with Lunch Club</title>", html)
         self.assertIn('<img class="media" src="./media/IMG-20240205-WA0001.jpg">', html)
         self.assertIn('<a href="./media/agenda.pdf">📎 agenda.pdf</a>', html)
         self.assertIn('<a href="https://example.org/menu?day=tue" target="_blank">', html)
